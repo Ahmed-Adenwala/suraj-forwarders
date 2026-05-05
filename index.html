@@ -1,0 +1,1483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Suraj Forwarders – Invoice Register</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg: #0f0f0f;
+    --surface: #1a1a1a;
+    --surface2: #222222;
+    --border: #2e2e2e;
+    --accent: #c8a96e;
+    --accent2: #8fb3a0;
+    --text: #e8e4dc;
+    --muted: #6b6560;
+    --danger: #c46a5a;
+    --success: #5a9c7a;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+    --display: 'Playfair Display', serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    font-size: 14px;
+  }
+
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 18px 32px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo-mark {
+    width: 40px; height: 40px;
+    background: var(--accent);
+    display: grid;
+    place-items: center;
+    font-family: var(--display);
+    font-size: 20px;
+    color: #111;
+    flex-shrink: 0;
+    letter-spacing: -1px;
+  }
+
+  header h1 { font-family: var(--display); font-size: 18px; color: var(--accent); letter-spacing: 0.02em; }
+  header p { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+
+  .badge {
+    margin-left: auto;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 4px 12px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    border-radius: 2px;
+  }
+  .badge span { color: var(--accent2); }
+
+  nav {
+    display: flex;
+    gap: 2px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+  }
+
+  .nav-btn {
+    padding: 12px 24px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    position: relative;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    transition: color 0.2s;
+  }
+
+  .nav-btn::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent);
+    transform: scaleX(0);
+    transition: transform 0.2s;
+  }
+
+  .nav-btn.active { color: var(--accent); }
+  .nav-btn.active::after { transform: scaleX(1); }
+
+  .page { display: none; padding: 32px; max-width: 1200px; }
+  .page.active { display: block; }
+
+  /* ── Upload Page ── */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    background: var(--surface);
+    border-radius: 4px;
+    padding: 48px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+
+  .upload-zone:hover, .upload-zone.drag { border-color: var(--accent); background: #1e1c19; }
+  .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .upload-icon { font-size: 40px; margin-bottom: 12px; }
+  .upload-zone h3 { font-family: var(--display); font-size: 20px; color: var(--accent); margin-bottom: 8px; }
+  .upload-zone p { color: var(--muted); font-size: 13px; }
+
+  .log-box {
+    margin-top: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px 20px;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.8;
+    min-height: 80px;
+    max-height: 240px;
+    overflow-y: auto;
+  }
+
+  .log-line { display: flex; gap: 12px; }
+  .log-line .ts { color: var(--muted); }
+  .log-line.ok .msg { color: var(--success); }
+  .log-line.warn .msg { color: var(--accent); }
+  .log-line.err .msg { color: var(--danger); }
+
+  .section-title { font-family: var(--display); font-size: 22px; color: var(--accent); margin-bottom: 4px; }
+  .section-sub { color: var(--muted); font-size: 12px; font-family: var(--mono); margin-bottom: 24px; }
+
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+
+  .stat-card { background: var(--surface); border: 1px solid var(--border); padding: 16px 20px; border-radius: 4px; }
+  .stat-card .val { font-family: var(--mono); font-size: 22px; color: var(--accent); font-weight: 500; }
+  .stat-card .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 4px; }
+
+  .tbl-wrap { overflow-x: auto; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+  th {
+    background: var(--surface2);
+    color: var(--muted);
+    font-weight: 500;
+    text-align: left;
+    padding: 10px 14px;
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+
+  td { padding: 9px 14px; border-bottom: 1px solid #1f1f1f; color: var(--text); }
+  tr:hover td { background: #1d1d1d; }
+
+  .mono { font-family: var(--mono); }
+  .right { text-align: right; }
+
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 2px; font-family: var(--mono); font-size: 10px; font-weight: 500; }
+  .tag-a { background: #1c2d26; color: #5a9c7a; }
+  .tag-r { background: #2d1c1c; color: #c46a5a; }
+  .tag-done { background: #1a1a2e; color: #7070b0; }
+
+  .search-bar { display: flex; gap: 12px; margin-bottom: 24px; align-items: flex-end; flex-wrap: wrap; }
+  .field-group { display: flex; flex-direction: column; gap: 6px; }
+  .field-group label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--mono); }
+
+  input[type="text"], input[type="date"], select {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 14px;
+    font-family: var(--sans);
+    font-size: 13px;
+    border-radius: 3px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  input[type="text"]:focus, input[type="date"]:focus, select:focus { border-color: var(--accent); }
+  input[type="text"] { width: 320px; }
+
+  .suggestions {
+    position: absolute;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 3px 3px;
+    z-index: 50;
+    width: 320px;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .suggestion-item { padding: 8px 14px; cursor: pointer; font-size: 13px; transition: background 0.15s; }
+  .suggestion-item:hover { background: #2a2a2a; color: var(--accent); }
+  .relative { position: relative; }
+
+  .btn {
+    padding: 10px 20px;
+    border: none;
+    cursor: pointer;
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 3px;
+    transition: opacity 0.2s;
+    white-space: nowrap;
+  }
+
+  .btn:hover { opacity: 0.85; }
+  .btn-accent { background: var(--accent); color: #111; }
+  .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .btn-ghost { background: transparent; border: 1px solid var(--accent2); color: var(--accent2); }
+  .btn-danger { background: transparent; border: 1px solid var(--danger); color: var(--danger); }
+  .btn-purple { background: transparent; border: 1px solid #9b72cf; color: #9b72cf; }
+  .btn-sm { padding: 6px 14px; font-size: 12px; }
+
+  .results-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .results-info { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .results-info span { color: var(--accent); }
+
+  .check-col input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+
+  .empty-state { padding: 60px 20px; text-align: center; color: var(--muted); }
+  .empty-state .icon { font-size: 36px; margin-bottom: 12px; }
+  .empty-state p { font-size: 13px; }
+
+  .form-row { margin-bottom: 16px; }
+  .form-row label { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--mono); margin-bottom: 6px; }
+  textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 14px;
+    font-family: var(--sans);
+    font-size: 13px;
+    border-radius: 3px;
+    outline: none;
+    resize: vertical;
+    min-height: 70px;
+    transition: border-color 0.2s;
+  }
+  textarea:focus { border-color: var(--accent); }
+
+  .day-view-header { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+
+  .date-nav { display: flex; align-items: center; gap: 12px; }
+  .date-nav button {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    width: 32px; height: 32px;
+    cursor: pointer;
+    font-size: 16px;
+    border-radius: 2px;
+    transition: border-color 0.2s;
+  }
+  .date-nav button:hover { border-color: var(--accent); color: var(--accent); }
+
+  .party-group { margin-bottom: 20px; }
+  .party-group-header {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px 4px 0 0;
+    padding: 8px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .party-group-header .pname { font-weight: 600; font-size: 13px; color: var(--accent); }
+  .party-group-header .count { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .party-group table { border-radius: 0; border: 1px solid var(--border); border-top: none; }
+
+  /* Step blocks */
+  .step-block { margin-bottom: 28px; }
+  .step-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-family: var(--mono);
+    margin-bottom: 16px;
+  }
+  .step-num {
+    width: 22px; height: 22px;
+    background: var(--accent);
+    color: #111;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  /* Party & KA management panel */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.75);
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .modal-overlay.hidden { display: none; }
+  .modal-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    width: 560px;
+    max-width: 100%;
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 28px;
+  }
+  .modal-box h2 { font-family: var(--display); font-size: 18px; color: var(--accent); margin-bottom: 6px; }
+  .modal-box .sub { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-bottom: 20px; }
+
+  .ka-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+  .ka-item {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 8px 12px;
+  }
+  .ka-item span { flex: 1; font-size: 13px; }
+  .ka-item.addr-item { flex-direction: column; align-items: flex-start; }
+  .ka-item.addr-item .addr-text { font-size: 12px; white-space: pre-wrap; line-height: 1.5; }
+  .ka-del { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 18px; flex-shrink: 0; }
+
+  .add-row { display: flex; gap: 8px; }
+  .add-row input[type="text"] { flex: 1; width: auto; }
+
+  .ka-select-list { display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto; }
+  .ka-select-item {
+    padding: 8px 14px;
+    cursor: pointer;
+    font-size: 13px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    transition: background 0.15s;
+    color: var(--text);
+  }
+  .ka-select-item:hover { background: #2a2a2a; color: var(--accent); }
+  .ka-section-label { font-family: var(--mono); font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; margin-top: 12px; }
+
+  .pill-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .pill {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent2);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .pill:hover { background: #2a2a2a; border-color: var(--accent); color: var(--accent); }
+  .pill.active { background: #2a2420; border-color: var(--accent); color: var(--accent); }
+
+  .day-filter-row { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; }
+  .day-filter-row label { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .day-filter-row select { padding: 6px 10px; font-size: 12px; }
+
+  .done-row td { opacity: 0.4; }
+  .done-badge { font-family: var(--mono); font-size: 10px; color: #7070b0; background: #1a1a2e; padding: 2px 7px; border-radius: 2px; }
+
+  /* Address print area (hidden in UI, printed via window.print) */
+  @media print {
+    body > *:not(#addr-print-area) { display: none !important; }
+    #addr-print-area { display: block !important; }
+  }
+  #addr-print-area { display: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-mark">SF</div>
+  <div>
+    <h1>Suraj Forwarders – Invoice Register</h1>
+    <p>Daily Sales Register · Cover Letter Generator</p>
+  </div>
+  <div class="badge">Records: <span id="total-count">0</span></div>
+  <div style="display:flex; gap:8px; margin-left:12px;">
+    <button class="btn btn-ghost btn-sm" onclick="saveDataFile()" title="Save all data to a file on your PC" style="padding:7px 14px; font-size:12px; border-color:#5a9c7a; color:#5a9c7a;">💾 Save Data</button>
+    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('load-data-input').click()" title="Load data file from your PC" style="padding:7px 14px; font-size:12px; border-color:#c8a96e; color:#c8a96e;">📂 Load Data</button>
+    <input type="file" id="load-data-input" accept=".json" style="display:none;" onchange="loadDataFile(event)">
+  </div>
+</header>
+
+<nav>
+  <button class="nav-btn active" onclick="showPage('upload',this)">⬆ Upload Excel</button>
+  <button class="nav-btn" onclick="showPage('dayview',this)">📅 Pending Invoices</button>
+  <button class="nav-btn" onclick="showPage('coverletter',this)">📄 Cover Letter</button>
+  <button class="nav-btn" onclick="showPage('partybook',this)">📒 Party Book</button>
+</nav>
+
+<!-- ── UPLOAD PAGE ── -->
+<div class="page active" id="page-upload">
+  <p class="section-title">Upload Daily Sales Register</p>
+  <p class="section-sub">UPLOAD THE TALLY EXCEL EXPORT · DUPLICATES SKIPPED BY VOUCHER NO.</p>
+
+  <div class="upload-zone" id="drop-zone">
+    <input type="file" accept=".xlsx,.xls" onchange="handleFile(this.files[0])">
+    <div class="upload-icon">📊</div>
+    <h3>Drop your Excel file here</h3>
+    <p>or click to browse · .xlsx / .xls supported</p>
+  </div>
+
+  <div class="log-box" id="upload-log">
+    <div class="log-line warn"><span class="ts">—</span><span class="msg">No file uploaded yet. Drop your daily Sales Register Excel above.</span></div>
+  </div>
+
+  <div style="margin-top: 28px;">
+    <div class="stats-row" id="stats-row">
+      <div class="stat-card"><div class="val" id="s-total">0</div><div class="lbl">Total Records</div></div>
+      <div class="stat-card"><div class="val" id="s-pending">0</div><div class="lbl">Pending</div></div>
+      <div class="stat-card"><div class="val" id="s-parties">0</div><div class="lbl">Unique Parties</div></div>
+      <div class="stat-card"><div class="val" id="s-dates">0</div><div class="lbl">Days Covered</div></div>
+      <div class="stat-card"><div class="val" id="s-last">—</div><div class="lbl">Latest Date</div></div>
+    </div>
+  </div>
+
+  <div style="display:flex; gap:12px; margin-top: 8px;">
+    <button class="btn btn-outline" onclick="exportData()">⬇ Export All Data (JSON backup)</button>
+    <button class="btn btn-danger btn-sm" onclick="clearAllData()">🗑 Clear All Data</button>
+  </div>
+</div>
+
+<!-- ── PENDING / DAY VIEW PAGE ── -->
+<div class="page" id="page-dayview">
+  <p class="section-title">Pending Invoices</p>
+  <p class="section-sub">ONLY SHOWS INVOICES NOT YET INCLUDED IN A COVER LETTER · GROUPED BY DATE & PARTY</p>
+
+  <div class="day-view-header">
+    <div class="date-nav">
+      <button onclick="prevDate()">‹</button>
+      <input type="date" id="day-date" onchange="renderDayView()">
+      <button onclick="nextDate()">›</button>
+    </div>
+    <div class="day-filter-row">
+      <label>Show:</label>
+      <select onchange="renderDayView()" id="day-filter">
+        <option value="pending">Pending only</option>
+        <option value="all">All invoices</option>
+        <option value="done">Done only</option>
+      </select>
+    </div>
+    <div id="day-summary" style="font-family: var(--mono); font-size: 12px; color: var(--muted);"></div>
+  </div>
+
+  <div id="day-content">
+    <div class="empty-state"><div class="icon">📅</div><p>Select a date to view invoices</p></div>
+  </div>
+</div>
+
+<!-- ── COVER LETTER PAGE ── -->
+<div class="page" id="page-coverletter">
+
+  <!-- STEP 1 -->
+  <div class="step-block">
+    <div class="step-label"><span class="step-num">1</span> Search Party &amp; Date Range</div>
+    <div class="search-bar">
+      <div class="field-group relative">
+        <label>Party Name</label>
+        <input type="text" id="search-party" placeholder="e.g. INVENTA SYSTEMS" oninput="onPartyInput()" onblur="hideSuggestions()" autocomplete="off">
+        <div class="suggestions" id="suggestions" style="display:none;"></div>
+      </div>
+      <div class="field-group">
+        <label>From Date</label>
+        <input type="date" id="search-date-from">
+      </div>
+      <div class="field-group">
+        <label>To Date</label>
+        <input type="date" id="search-date-to">
+      </div>
+      <button class="btn btn-accent" onclick="doSearch()">Search</button>
+      <button class="btn btn-outline" onclick="resetAll()">Clear</button>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="step-block" id="step2-block" style="display:none;">
+    <div class="step-label">
+      <span class="step-num">2</span> Select Invoices to Include
+      <span id="sel-count-badge" style="margin-left:12px; font-family:var(--mono); font-size:12px; color:var(--accent2);"></span>
+      <div style="margin-left:auto; display:flex; gap:8px;">
+        <button class="btn btn-outline btn-sm" onclick="toggleAllResults(true)">Select All</button>
+        <button class="btn btn-outline btn-sm" onclick="toggleAllResults(false)">Deselect All</button>
+      </div>
+    </div>
+    <div id="search-results"></div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="step-block" id="step3-block" style="display:none;">
+    <div class="step-label"><span class="step-num">3</span> Kind Attention &amp; Print PDF</div>
+    <div>
+      <div style="display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap;">
+        <div class="field-group relative" style="flex:1; min-width:280px;">
+          <label>Kind Attention (Contact Name)</label>
+          <input type="text" id="cl-attn" placeholder="e.g. MR. Priyank Shah" style="width:100%;" oninput="onAttnInput()" onblur="hideAttnSuggestions()" autocomplete="off">
+          <div class="suggestions" id="attn-suggestions" style="display:none; width:100%;"></div>
+        </div>
+        <div class="field-group" style="flex:1; min-width:200px;">
+          <label>Party Address (for envelope)</label>
+          <div class="pill-row" id="addr-pills"></div>
+          <select id="addr-select" style="width:100%; font-size:12px;">
+            <option value="">— select address —</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:12px; margin-top:18px; flex-wrap:wrap;">
+        <button class="btn btn-accent" style="padding:10px 28px; font-size:14px;" onclick="generatePDF()">🖨 Generate Cover Letter PDF</button>
+        <button class="btn btn-purple" style="padding:10px 20px;" onclick="printAddress()">📬 Print Address (Envelope)</button>
+        <button class="btn btn-ghost btn-sm" onclick="openPartyBook()">⚙ Manage K/A &amp; Addresses</button>
+      </div>
+      <div id="selected-summary" style="margin-top:16px;"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── PARTY BOOK PAGE ── -->
+<div class="page" id="page-partybook">
+  <p class="section-title">Party Book</p>
+  <p class="section-sub">MANAGE KIND ATTENTION NAMES & ADDRESSES PER PARTY</p>
+
+  <div style="display:flex; gap:12px; margin-bottom:24px; align-items:flex-end;">
+    <div class="field-group relative" style="flex:1;">
+      <label>Search Party</label>
+      <input type="text" id="pb-search" placeholder="Type party name..." oninput="renderPartyBook()" style="width:100%;">
+    </div>
+  </div>
+  <div id="party-book-list"></div>
+</div>
+
+<!-- ── MODAL for editing party KA & address ── -->
+<div class="modal-overlay hidden" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <h2 id="modal-title">Party Settings</h2>
+    <div class="sub" id="modal-sub"></div>
+
+    <div class="ka-section-label">Kind Attention Names</div>
+    <div class="ka-list" id="modal-ka-list"></div>
+    <div class="add-row" style="margin-bottom:20px;">
+      <input type="text" id="modal-ka-input" placeholder="Add new K/A name..." style="width:auto; flex:1;">
+      <button class="btn btn-ghost btn-sm" onclick="addKA()">+ Add</button>
+    </div>
+
+    <div class="ka-section-label">Addresses (for envelopes)</div>
+    <div class="ka-list" id="modal-addr-list"></div>
+    <div style="margin-bottom:20px;">
+      <textarea id="modal-addr-input" placeholder="Add new address (multi-line OK)..." style="min-height:80px; margin-bottom:8px;"></textarea>
+      <button class="btn btn-ghost btn-sm" onclick="addAddr()">+ Add Address</button>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:8px;">
+      <button class="btn btn-accent" onclick="saveModal()">Save</button>
+      <button class="btn btn-outline" onclick="closeModalDirect()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Address print area -->
+<div id="addr-print-area"></div>
+
+<iframe id="print-frame" style="position:fixed;width:0;height:0;border:none;left:-9999px;top:-9999px;"></iframe>
+
+<script>
+// ── State ──
+let DB = [];
+let PARTY_BOOK = {}; // { PARTY_NAME: { ka: [...], addr: [...] } }
+let DONE_SET = new Set(); // vchNo strings that have been generated
+const STORAGE_KEY = 'sf_invoice_db';
+const PB_KEY = 'sf_party_book';
+const DONE_KEY = 'sf_done_set';
+
+let searchResults = [];
+let currentSearchParty = null; // exact party name from DB records
+let currentModalParty = null;
+let modalKATemp = [];
+let modalAddrTemp = [];
+
+// ── Persist / Load (File-based — saves to your PC, not browser) ──
+// These are in-memory only; data is saved/loaded via JSON file on your PC.
+function saveDB() { /* in-memory only; use 💾 Save Data button to save to PC */ }
+function savePB() { /* in-memory only; use 💾 Save Data button to save to PC */ }
+function saveDone() { /* in-memory only; use 💾 Save Data button to save to PC */ }
+
+function loadAll() {
+  // On fresh open, start empty — user must click "📂 Load Data" to restore from their PC file
+  DB = [];
+  PARTY_BOOK = {};
+  DONE_SET = new Set();
+  updateStats();
+  // Show hint in upload log after page loads
+  setTimeout(() => {
+    log('👋 Welcome! Click "📂 Load Data" (top right) to restore your saved data from your PC.', 'warn');
+    log('After any changes, click "💾 Save Data" to save back to your PC file.', 'warn');
+  }, 200);
+}
+
+// ── Save all data as a JSON file to PC ──
+function saveDataFile() {
+  const payload = {
+    _version: 1,
+    _saved: new Date().toISOString(),
+    db: DB,
+    partyBook: PARTY_BOOK,
+    doneSet: [...DONE_SET]
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'suraj_forwarders_data.json';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  log('✅ Data saved! File: suraj_forwarders_data.json — keep it safe on your PC.', 'ok');
+}
+
+// ── Load data from a JSON file on PC ──
+function loadDataFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const payload = JSON.parse(e.target.result);
+      if (!payload.db || !Array.isArray(payload.db)) { alert('Invalid data file. Please select the correct suraj_forwarders_data.json file.'); return; }
+      DB = payload.db || [];
+      PARTY_BOOK = payload.partyBook || {};
+      DONE_SET = new Set(payload.doneSet || []);
+      updateStats();
+      log(`✅ Data loaded! ${DB.length} invoice records, ${Object.keys(PARTY_BOOK).length} parties restored.`, 'ok');
+      renderPartyBook && renderPartyBook();
+    } catch(err) {
+      alert('Could not read file: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  // Reset input so same file can be reloaded if needed
+  event.target.value = '';
+}
+
+// ── Navigation ──
+function showPage(name, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  if (btn) btn.classList.add('active');
+  if (name === 'dayview') initDayView();
+  if (name === 'partybook') renderPartyBook();
+}
+
+// ── Upload ──
+const dropZone = document.getElementById('drop-zone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag'); if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+
+function log(msg, type='ok') {
+  const box = document.getElementById('upload-log');
+  const now = new Date().toTimeString().slice(0,8);
+  const line = `<div class="log-line ${type}"><span class="ts">${now}</span><span class="msg">${msg}</span></div>`;
+  if (box.querySelector('.log-line.warn')?.textContent.includes('No file')) box.innerHTML = '';
+  box.innerHTML += line;
+  box.scrollTop = box.scrollHeight;
+}
+
+function handleFile(file) {
+  if (!file) return;
+  log(`Reading file: ${file.name}`, 'warn');
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+      const sheetName = wb.SheetNames.find(n => n.toLowerCase().includes('sales')) || wb.SheetNames[0];
+      log(`Found sheet: "${sheetName}"`, 'ok');
+      const ws = wb.Sheets[sheetName];
+      const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+      let headerIdx = -1;
+      for (let i = 0; i < Math.min(raw.length, 20); i++) {
+        const row = raw[i].map(c => String(c).trim());
+        if (row.some(c => c === 'Date') && row.some(c => c.includes('Particulars'))) { headerIdx = i; break; }
+      }
+
+      if (headerIdx < 0) { log('Could not find header row.', 'err'); return; }
+
+      const headers = raw[headerIdx].map(c => String(c).trim());
+      const dateIdx = headers.findIndex(h => h === 'Date');
+      const partIdx = headers.findIndex(h => h.includes('Particulars'));
+      const typeIdx = headers.findIndex(h => h.includes('Vch Type') || h.includes('Voucher Type'));
+      const noIdx   = headers.findIndex(h => h.includes('Vch No') || h.includes('Voucher No'));
+      let amtIdx = headers.findIndex(h => h === 'Debit');
+      if (amtIdx < 0) amtIdx = headers.findIndex(h => h.includes('Gross Total'));
+      if (amtIdx < 0) amtIdx = headers.findIndex(h => h === 'Value');
+
+      log(`Columns → Date[${dateIdx}] Party[${partIdx}] Type[${typeIdx}] VchNo[${noIdx}] Amount[${amtIdx}]`, 'ok');
+
+      let added = 0, skipped = 0, badRows = 0;
+      const existingNos = new Set(DB.map(r => r.vchNo));
+
+      for (let i = headerIdx + 1; i < raw.length; i++) {
+        const row = raw[i];
+        const dateRaw = row[dateIdx];
+        const party   = String(row[partIdx] || '').trim();
+        const vchType = String(row[typeIdx] || '').trim();
+        const vchNo   = String(row[noIdx]   || '').trim();
+        let gross = parseFloat(row[amtIdx]) || 0;
+        if (!gross) gross = parseFloat(row[amtIdx + 1]) || 0;
+
+        if (!party || !vchNo || party === 'Particulars' || vchNo === 'Vch No.' || party.toLowerCase().startsWith('total')) { badRows++; continue; }
+
+        let dateStr = '';
+        if (dateRaw instanceof Date) {
+          dateStr = dateRaw.toISOString().slice(0, 10);
+        } else if (typeof dateRaw === 'number' && dateRaw > 40000) {
+          const d = new Date((dateRaw - 25569) * 86400 * 1000);
+          dateStr = d.toISOString().slice(0, 10);
+        } else if (typeof dateRaw === 'string' && dateRaw.length >= 8) {
+          dateStr = dateRaw.slice(0, 10);
+        }
+
+        if (!dateStr || dateStr < '2000-01-01') { badRows++; continue; }
+        if (existingNos.has(vchNo)) { skipped++; continue; }
+
+        DB.push({ date: dateStr, party, vchType, vchNo, gross });
+        existingNos.add(vchNo);
+        added++;
+      }
+
+      log(`Done: +${added} new records | ${skipped} duplicates skipped | ${badRows} non-data rows ignored`, added > 0 ? 'ok' : 'warn');
+      if (added > 0) log('💡 Remember to click "💾 Save Data" (top right) to save your updated data to your PC!', 'warn');
+      saveDB();
+      updateStats();
+    } catch(err) {
+      log('Error parsing file: ' + err.message, 'err');
+      console.error(err);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function updateStats() {
+  const total = DB.length;
+  const pending = DB.filter(r => !DONE_SET.has(r.vchNo)).length;
+  const parties = new Set(DB.map(r => r.party)).size;
+  const dates = new Set(DB.map(r => r.date)).size;
+  const latest = DB.length ? DB.map(r=>r.date).sort().pop() : '—';
+  document.getElementById('s-total').textContent = total;
+  document.getElementById('s-pending').textContent = pending;
+  document.getElementById('s-parties').textContent = parties;
+  document.getElementById('s-dates').textContent = dates;
+  document.getElementById('s-last').textContent = latest !== '—' ? fmtDate(latest) : '—';
+  document.getElementById('total-count').textContent = total;
+}
+
+function exportData() {
+  saveDataFile();
+}
+
+function clearAllData() {
+  if (!confirm('Clear ALL stored records? This cannot be undone.')) return;
+  DB = []; DONE_SET = new Set();
+  saveDB(); saveDone();
+  updateStats();
+  log('All data cleared.', 'warn');
+}
+
+// ── SUBJECT LINE LOGIC ──
+// If vchNo contains "I" → Import, "E" → Export, both → Import & Export, neither → Misc
+function getSubjectFromRows(rows) {
+  let hasI = false, hasE = false;
+  rows.forEach(r => {
+    const no = r.vchNo.toUpperCase();
+    // Look for standalone I or E in the voucher number (typical pattern like SFIG-001 / SFEG-001)
+    if (/I/.test(no)) hasI = true;
+    if (/E/.test(no)) hasE = true;
+  });
+  if (hasI && hasE) return 'IMPORT & EXPORT CLEARANCE INVOICE';
+  if (hasI) return 'IMPORT CLEARANCE INVOICE';
+  if (hasE) return 'EXPORT CLEARANCE INVOICE';
+  return 'MISC INVOICE';
+}
+
+// ── Day View (Pending Invoices) ──
+function initDayView() {
+  const dateInput = document.getElementById('day-date');
+  if (!dateInput.value) {
+    // Default to earliest date with pending invoices
+    const pendingDates = [...new Set(DB.filter(r => !DONE_SET.has(r.vchNo)).map(r=>r.date))].sort();
+    dateInput.value = pendingDates[0] || DB.map(r=>r.date).sort().pop() || new Date().toISOString().slice(0,10);
+  }
+  renderDayView();
+}
+
+function renderDayView() {
+  const date = document.getElementById('day-date').value;
+  const filter = document.getElementById('day-filter').value;
+  const content = document.getElementById('day-content');
+  const summary = document.getElementById('day-summary');
+
+  if (!date) { content.innerHTML = '<div class="empty-state"><div class="icon">📅</div><p>Select a date</p></div>'; return; }
+
+  let rows = DB.filter(r => r.date === date);
+  if (filter === 'pending') rows = rows.filter(r => !DONE_SET.has(r.vchNo));
+  if (filter === 'done')    rows = rows.filter(r => DONE_SET.has(r.vchNo));
+
+  if (!rows.length) {
+    content.innerHTML = `<div class="empty-state"><div class="icon">📋</div><p>No ${filter === 'pending' ? 'pending ' : ''}invoices for this date</p></div>`;
+    summary.textContent = 'No records';
+    return;
+  }
+
+  const parties = {};
+  rows.forEach(r => { if (!parties[r.party]) parties[r.party] = []; parties[r.party].push(r); });
+
+  const total = rows.reduce((s,r) => s + r.gross, 0);
+  summary.textContent = `${rows.length} invoice${rows.length!==1?'s':''} · ${Object.keys(parties).length} parties · ₹${fmtNum(total)}`;
+
+  let html = '';
+  let sr = 1;
+  Object.entries(parties).forEach(([party, invs]) => {
+    const pTotal = invs.reduce((s,r) => s+r.gross, 0);
+    html += `<div class="party-group">
+      <div class="party-group-header">
+        <span class="pname">${party}</span>
+        <span class="count">${invs.length} invoice${invs.length>1?'s':''} · ₹${fmtNum(pTotal)}</span>
+      </div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>#</th><th>Voucher No.</th><th>Type</th><th>Gross Amount</th><th>Status</th></tr></thead>
+        <tbody>`;
+    invs.forEach(r => {
+      const typeTag = r.vchType === 'A-AMD-IMPORT' ? '<span class="tag tag-a">GIA</span>' : '<span class="tag tag-r">GIR</span>';
+      const done = DONE_SET.has(r.vchNo);
+      const statusBadge = done ? '<span class="done-badge">✓ Done</span>' : '<span style="font-family:var(--mono);font-size:10px;color:var(--accent);">Pending</span>';
+      html += `<tr class="${done ? 'done-row' : ''}">
+        <td class="mono" style="color:var(--muted);width:36px">${sr++}</td>
+        <td class="mono">${r.vchNo}</td>
+        <td>${typeTag}</td>
+        <td class="mono right">₹${fmtNum(r.gross)}</td>
+        <td>${statusBadge}</td>
+      </tr>`;
+    });
+    html += `</tbody></table></div></div>`;
+  });
+
+  content.innerHTML = html;
+}
+
+function prevDate() {
+  const inp = document.getElementById('day-date');
+  if (!inp.value) return;
+  const filter = document.getElementById('day-filter').value;
+  let allRows = filter === 'pending' ? DB.filter(r => !DONE_SET.has(r.vchNo)) : filter === 'done' ? DB.filter(r => DONE_SET.has(r.vchNo)) : DB;
+  const dates = [...new Set(allRows.map(r=>r.date))].sort();
+  const idx = dates.indexOf(inp.value);
+  if (idx > 0) { inp.value = dates[idx-1]; renderDayView(); }
+}
+
+function nextDate() {
+  const inp = document.getElementById('day-date');
+  if (!inp.value) return;
+  const filter = document.getElementById('day-filter').value;
+  let allRows = filter === 'pending' ? DB.filter(r => !DONE_SET.has(r.vchNo)) : filter === 'done' ? DB.filter(r => DONE_SET.has(r.vchNo)) : DB;
+  const dates = [...new Set(allRows.map(r=>r.date))].sort();
+  const idx = dates.indexOf(inp.value);
+  if (idx < dates.length-1) { inp.value = dates[idx+1]; renderDayView(); }
+}
+
+// ── Cover Letter Search ──
+function onPartyInput() {
+  const val = document.getElementById('search-party').value.trim().toUpperCase();
+  const box = document.getElementById('suggestions');
+  if (val.length < 2) { box.style.display = 'none'; return; }
+  const parties = [...new Set(DB.map(r => r.party))].filter(p => p.toUpperCase().includes(val)).slice(0, 8);
+  if (!parties.length) { box.style.display = 'none'; return; }
+  box.innerHTML = parties.map(p => `<div class="suggestion-item" onmousedown="selectSuggestion('${p.replace(/'/g,"\\'")}')">${p}</div>`).join('');
+  box.style.display = 'block';
+}
+
+function selectSuggestion(p) {
+  document.getElementById('search-party').value = p;
+  document.getElementById('suggestions').style.display = 'none';
+  // Auto-fill K/A if only one
+  loadPartyKAAndAddr(p);
+}
+
+function hideSuggestions() { setTimeout(() => { document.getElementById('suggestions').style.display = 'none'; }, 200); }
+
+function loadPartyKAAndAddr(party) {
+  const pb = PARTY_BOOK[party] || { ka: [], addr: [] };
+
+  // K/A suggestions
+  const attnInput = document.getElementById('cl-attn');
+  if (pb.ka.length === 1) {
+    attnInput.value = pb.ka[0];
+  } else {
+    attnInput.value = '';
+  }
+
+  // Address pills
+  renderAddrPills(party);
+}
+
+function renderAddrPills(party) {
+  const pb = PARTY_BOOK[party] || { ka: [], addr: [] };
+  const pillRow = document.getElementById('addr-pills');
+  const addrSel = document.getElementById('addr-select');
+
+  addrSel.innerHTML = '<option value="">— select address —</option>';
+  pb.addr.forEach((a, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = a.split('\n')[0].substring(0, 50) + (a.length > 50 ? '…' : '');
+    addrSel.appendChild(opt);
+  });
+
+  pillRow.innerHTML = '';
+  if (pb.addr.length > 1) {
+    pb.addr.forEach((a, i) => {
+      const pill = document.createElement('span');
+      pill.className = 'pill';
+      pill.textContent = `Addr ${i+1}`;
+      pill.onclick = () => { addrSel.value = i; };
+      pillRow.appendChild(pill);
+    });
+  }
+}
+
+// K/A autocomplete
+function onAttnInput() {
+  const val = document.getElementById('cl-attn').value.trim();
+  const party = currentSearchParty || document.getElementById('search-party').value.trim();
+  const box = document.getElementById('attn-suggestions');
+  if (!party || val.length < 1) { box.style.display = 'none'; return; }
+  const pb = PARTY_BOOK[party] || { ka: [] };
+  const matches = pb.ka.filter(k => k.toLowerCase().includes(val.toLowerCase()));
+  if (!matches.length) { box.style.display = 'none'; return; }
+  box.innerHTML = matches.map(k => `<div class="suggestion-item" onmousedown="document.getElementById('cl-attn').value='${k.replace(/'/g,"\\'")}'; document.getElementById('attn-suggestions').style.display='none';">${k}</div>`).join('');
+  box.style.display = 'block';
+}
+
+function hideAttnSuggestions() { setTimeout(() => { document.getElementById('attn-suggestions').style.display = 'none'; }, 200); }
+
+function doSearch() {
+  const party = document.getElementById('search-party').value.trim();
+  const from  = document.getElementById('search-date-from').value;
+  const to    = document.getElementById('search-date-to').value;
+
+  if (!party) { alert('Please enter a party name'); return; }
+
+  searchResults = DB.filter(r => {
+    const pm = r.party.toUpperCase().includes(party.toUpperCase());
+    const fm = !from || r.date >= from;
+    const tm = !to   || r.date <= to;
+    return pm && fm && tm;
+  }).sort((a,b) => a.date.localeCompare(b.date) || a.vchNo.localeCompare(b.vchNo));
+
+  if (!searchResults.length) { alert('No invoices found for this party / date range.'); return; }
+
+  // Use the exact party name from the DB record (not what user typed)
+  currentSearchParty = searchResults[0].party;
+
+  renderSearchResults();
+  loadPartyKAAndAddr(currentSearchParty);
+  document.getElementById('step2-block').style.display = 'block';
+  document.getElementById('step3-block').style.display = 'block';
+  document.getElementById('step2-block').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function resetAll() {
+  document.getElementById('search-party').value = '';
+  document.getElementById('search-date-from').value = '';
+  document.getElementById('search-date-to').value = '';
+  searchResults = [];
+  currentSearchParty = null;
+  document.getElementById('search-results').innerHTML = '';
+  document.getElementById('step2-block').style.display = 'none';
+  document.getElementById('step3-block').style.display = 'none';
+  document.getElementById('cl-attn').value = '';
+}
+
+function renderSearchResults() {
+  const container = document.getElementById('search-results');
+  const total = searchResults.reduce((s,r) => s+r.gross, 0);
+
+  let html = `<div class="results-header">
+    <div class="results-info"><span>${searchResults.length}</span> invoices &nbsp;·&nbsp; Total &#8377;${fmtNum(total)}</div>
+  </div>
+  <div class="tbl-wrap"><table>
+    <thead><tr>
+      <th class="check-col"><input type="checkbox" id="chk-all" onchange="toggleAllResults(this.checked)"></th>
+      <th>#</th><th>Date</th><th>Bill No.</th><th>Type</th><th class="right">Amount (&#8377;)</th><th>Status</th>
+    </tr></thead><tbody>`;
+
+  searchResults.forEach((r,i) => {
+    const typeTag = r.vchType === 'A-AMD-IMPORT'
+      ? '<span class="tag tag-a">GIA</span>'
+      : '<span class="tag tag-r">GIR</span>';
+    const done = DONE_SET.has(r.vchNo);
+    // Pre-uncheck done invoices
+    html += `<tr class="${done ? 'done-row' : ''}">
+      <td class="check-col"><input type="checkbox" class="res-chk" data-idx="${i}" ${done ? '' : 'checked'} onchange="updateBadge()"></td>
+      <td class="mono" style="color:var(--muted)">${i+1}</td>
+      <td class="mono">${fmtDate(r.date)}</td>
+      <td class="mono">${r.vchNo}</td>
+      <td>${typeTag}</td>
+      <td class="mono right">&#8377;${fmtNum(r.gross)}</td>
+      <td>${done ? '<span class="done-badge">✓ Done</span>' : ''}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table></div>';
+  container.innerHTML = html;
+  updateBadge();
+}
+
+function toggleAllResults(checked) {
+  document.querySelectorAll('.res-chk').forEach(c => c.checked = checked);
+  document.getElementById('chk-all').checked = checked;
+  updateBadge();
+}
+
+function updateBadge() {
+  const all = document.querySelectorAll('.res-chk');
+  const sel = document.querySelectorAll('.res-chk:checked');
+  const total = [...sel].reduce((s,c) => s + (searchResults[parseInt(c.dataset.idx)]?.gross || 0), 0);
+  const badge = document.getElementById('sel-count-badge');
+  if (badge) badge.textContent = `${sel.length} of ${all.length} selected · ₹${fmtNum(total)}`;
+  const chkAll = document.getElementById('chk-all');
+  if (chkAll) chkAll.checked = sel.length === all.length && all.length > 0;
+}
+
+// ── PDF Generation ──
+function generatePDF() {
+  const attn = document.getElementById('cl-attn').value.trim();
+  const party = currentSearchParty || document.getElementById('search-party').value.trim();
+
+  // Save the K/A name if new
+  if (attn && party) {
+    if (!PARTY_BOOK[party]) PARTY_BOOK[party] = { ka: [], addr: [] };
+    if (!PARTY_BOOK[party].ka.includes(attn)) {
+      PARTY_BOOK[party].ka.push(attn);
+      savePB();
+    }
+  }
+
+  const selectedRows = [...document.querySelectorAll('.res-chk:checked')]
+    .map(c => searchResults[parseInt(c.dataset.idx)])
+    .filter(Boolean);
+
+  if (!selectedRows.length) { alert('Please select at least one invoice'); return; }
+
+  const subjectLine = getSubjectFromRows(selectedRows);
+  const total = selectedRows.reduce((s,r) => s+r.gross, 0);
+  const inWords = numberToWords(Math.round(total));
+
+  const now = new Date();
+  const dd = String(now.getDate()).padStart(2,'0');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const today = `${dd}-${months[now.getMonth()]}-${now.getFullYear()}`;
+  const safeName = (selectedRows[0].party).replace(/[^a-zA-Z0-9\s]/g,'').replace(/\s+/g,'_').toUpperCase();
+  const fileName = `${safeName}_${today}.pdf`;
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+
+  const lm = 18, rm = 18, pw = 210 - lm - rm;
+  let y = 14;
+
+  doc.setFont('times','bold');
+  doc.setFontSize(13);
+  doc.text('SURAJ FORWARDERS PVT LTD', 105, y, { align:'center' }); y += 6;
+
+  doc.setFont('times','normal');
+  doc.setFontSize(9.5);
+  doc.text('A/204-205, WALL STREET II, OPP. ORIENT CLUB, NR. GUJARAT COLLEGE,', 105, y, { align:'center' }); y += 4.5;
+  doc.text('ELLIS BRIDGE, AHMEDABAD - 380006, GUJARAT', 105, y, { align:'center' }); y += 4.5;
+  doc.text('Tel: 07926402005  |  Email: account@surajforwarders.com', 105, y, { align:'center' }); y += 5;
+
+  doc.setLineWidth(0.5);
+  doc.line(lm, y, 210 - rm, y); y += 7;
+
+  doc.setFont('times','normal');
+  doc.setFontSize(11);
+  doc.text('TO :', lm, y);
+  doc.setFont('times','bold');
+  doc.text(selectedRows[0].party, lm + 12, y); y += 6;
+
+  if (attn) {
+    doc.setFont('times','normal');
+    doc.text('KIND ATTN :', lm, y);
+    doc.setFont('times','bold');
+    doc.text(attn, lm + 25, y); y += 6;
+  }
+
+  doc.setFont('times','normal');
+  doc.setFontSize(11);
+  doc.text(`Date: ${today}`, 210 - rm, y - (attn ? 0 : 6), { align:'right' }); y += 4;
+
+  doc.setFont('times','bold');
+  doc.setFontSize(11);
+  doc.text(`Sub : ${subjectLine}`, lm, y); y += 7;
+
+  doc.setFont('times','normal');
+  doc.setFontSize(11);
+  doc.text('Dear Sir/Madam,', lm, y); y += 6;
+  doc.text('Enclosed please find the following documents relating to your below mentioned jobs', lm, y, { maxWidth: pw }); y += 10;
+
+  const tableBody = selectedRows.map((r, i) => [
+    String(i+1),
+    r.vchNo,
+    fmtDate(r.date),
+    fmtNum(r.gross) + ' INR'
+  ]);
+
+  doc.autoTable({
+    startY: y,
+    head: [['Sr.', 'Bill No.', 'Date', 'Amount']],
+    body: tableBody,
+    theme: 'grid',
+    styles: { font: 'times', fontSize: 10.5, cellPadding: 2.5, textColor: [17,17,17] },
+    headStyles: { fillColor: [235,235,235], textColor: [17,17,17], fontStyle: 'bold', fontSize: 10 },
+    columnStyles: {
+      0: { cellWidth: 12, halign:'center' },
+      1: { cellWidth: 65 },
+      2: { cellWidth: 35 },
+      3: { cellWidth: 42, halign:'right' }
+    },
+    margin: { left: lm, right: rm }
+  });
+
+  y = doc.lastAutoTable.finalY + 5;
+
+  doc.setFont('times','bold');
+  doc.setFontSize(11);
+  doc.text(`Total   ${fmtNum(total)} INR`, 210 - rm, y, { align:'right' }); y += 5;
+  doc.setFont('times','italic');
+  doc.setFontSize(10);
+  doc.text(`(${inWords})`, 210 - rm, y, { align:'right' }); y += 9;
+
+  doc.setFont('times','bold');
+  doc.setFontSize(11);
+  doc.text('List of Enclosures', lm, y); y += 5;
+  doc.setFont('times','normal');
+  doc.text('One set of original import documents', lm, y); y += 12;
+
+  doc.setFont('times','normal');
+  doc.setFontSize(11);
+  doc.text('Thanking You,', lm, y); y += 5;
+  doc.text('Yours Faithfully,', lm, y); y += 14;
+  doc.setFont('times','bold');
+  doc.text('For SURAJ FORWARDERS PVT LTD', lm, y); y += 10;
+  doc.setFont('times','normal');
+  doc.text('Checked by', lm, y);
+
+  // ── Mark selected invoices as done ──
+  selectedRows.forEach(r => DONE_SET.add(r.vchNo));
+  saveDone();
+  updateStats();
+  // Remind user to save their data file
+  setTimeout(() => { if(confirm('Bills marked as done! Save your data file to PC now?')) saveDataFile(); }, 1500);
+
+  // ── Save PDF ──
+  const pdfBlob = doc.output('blob');
+  const blobUrl = URL.createObjectURL(pdfBlob);
+
+  // Download
+  const a = document.createElement('a');
+  a.href = blobUrl;
+  a.download = fileName;
+  a.click();
+
+  // Open in new tab
+  setTimeout(() => {
+    window.open(blobUrl, '_blank');
+  }, 500);
+
+  // Also trigger printer via iframe
+  const frame = document.getElementById('print-frame');
+  frame.src = blobUrl;
+  frame.onload = function() {
+    frame.contentWindow.focus();
+    frame.contentWindow.print();
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
+  };
+
+  // Refresh search results to reflect done status
+  setTimeout(() => renderSearchResults(), 300);
+}
+
+// ── Print Address (Envelope C5 landscape) ──
+// ── Print Address (Envelope C5 landscape) ──
+// ── Print Address (Envelope C5 landscape) ──
+// ── Print Address (Envelope C5 landscape) ──
+function printAddress() {
+  const party = currentSearchParty || document.getElementById('search-party').value.trim();
+
+  if (!party) { alert('Please search for a party first.'); return; }
+
+  const pb = PARTY_BOOK[party] || { ka: [], addr: [] };
+
+  if (!pb.addr.length) {
+    alert('No address saved for this party.\n\nClick "Manage K/A & Addresses" button to add addresses first.');
+    return;
+  }
+
+  const addrSel = document.getElementById('addr-select');
+  const selVal = addrSel.value;
+  // selVal is "" (no selection) or "0", "1", "2"...
+  let addrText;
+  if (selVal === '' || selVal === null || selVal === undefined) {
+    addrText = pb.addr[0]; // default to first
+  } else {
+    addrText = pb.addr[parseInt(selVal, 10)];
+  }
+  if (!addrText) { addrText = pb.addr[0]; }
+  if (!addrText) { alert('Please select a valid address.'); return; }
+
+  // C5 envelope: 229mm × 162mm, landscape = 229w × 162h
+  const printWin = window.open('', '_blank', 'width=900,height=700');
+  printWin.document.write(`<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8">
+<title>Envelope - ${party}</title>
+<style>
+  @page {
+    size: 229mm 162mm landscape;
+    margin: 0;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 229mm;
+    height: 162mm;
+    font-family: 'Times New Roman', Times, serif;
+    background: white;
+    color: #000;
+    
+    /* Center vertically, push to the right horizontally */
+    display: flex;
+    align-items: center; 
+    justify-content: flex-end; 
+    
+    /* Reduced from 30mm to 10mm to push the text much closer to the right edge */
+    padding-right: 00mm; 
+  }
+  .recipient {
+    text-align: left;
+    width: 110mm; /* Keeps the text from stretching too wide */
+  }
+  .recipient .address { 
+    font-size: 12pt; /* Set text size to 12 */
+    line-height: 1.6; 
+    white-space: pre-wrap; 
+    font-weight: bold; /* Makes it pop nicely for the post office */
+  }
+</style>
+</head><body>
+<div class="recipient">
+  <!-- ONLY the exact text you saved is printed here -->
+  <div class="address">${addrText.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+</div>
+<script>window.onload = function() { window.print(); }<\/script>
+</body></html>`);
+  printWin.document.close();
+}
+
+// ── Party Book Page ──
+function renderPartyBook() {
+  const search = document.getElementById('pb-search').value.trim().toUpperCase();
+  const container = document.getElementById('party-book-list');
+
+  // Get all parties known (from DB + from party book)
+  const allParties = new Set([...DB.map(r => r.party), ...Object.keys(PARTY_BOOK)]);
+  const parties = [...allParties].filter(p => !search || p.toUpperCase().includes(search)).sort();
+
+  if (!parties.length) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">📒</div><p>No parties found</p></div>';
+    return;
+  }
+
+  let html = '<div class="tbl-wrap"><table><thead><tr><th>Party Name</th><th>K/A Names</th><th>Addresses</th><th></th></tr></thead><tbody>';
+  parties.forEach(p => {
+    const pb = PARTY_BOOK[p] || { ka: [], addr: [] };
+    const kaStr = pb.ka.length ? pb.ka.join(', ') : '<span style="color:var(--muted)">—</span>';
+    const addrStr = pb.addr.length ? `${pb.addr.length} address${pb.addr.length>1?'es':''}` : '<span style="color:var(--muted)">—</span>';
+    html += `<tr>
+      <td class="mono">${p}</td>
+      <td style="font-size:12px; max-width:260px;">${kaStr}</td>
+      <td style="font-size:12px;">${addrStr}</td>
+      <td><button class="btn btn-outline btn-sm" onclick="openModal('${p.replace(/'/g,"\\'")}')">Edit</button></td>
+    </tr>`;
+  });
+  html += '</tbody></table></div>';
+  container.innerHTML = html;
+}
+
+// ── Modal for party K/A & address ──
+function openModal(party) {
+  currentModalParty = party;
+  const pb = PARTY_BOOK[party] || { ka: [], addr: [] };
+  modalKATemp = [...(pb.ka || [])];
+  modalAddrTemp = [...(pb.addr || [])];
+
+  document.getElementById('modal-title').textContent = party;
+  document.getElementById('modal-sub').textContent = 'Manage Kind Attention names and mailing addresses';
+  document.getElementById('modal-ka-input').value = '';
+  document.getElementById('modal-addr-input').value = '';
+
+  renderModalLists();
+  document.getElementById('modal-overlay').classList.remove('hidden');
+}
+
+function openPartyBook() {
+  const party = currentSearchParty || document.getElementById('search-party').value.trim();
+  if (!party) { alert('Search for a party first.'); return; }
+  openModal(party);
+}
+
+function renderModalLists() {
+  const kaList = document.getElementById('modal-ka-list');
+  const addrList = document.getElementById('modal-addr-list');
+
+  kaList.innerHTML = modalKATemp.map((k, i) =>
+    `<div class="ka-item">
+      <span>${k}</span>
+      <button class="ka-del" onclick="removeKATemp(${i})">×</button>
+    </div>`
+  ).join('') || '<div style="color:var(--muted);font-size:12px;">No K/A names yet</div>';
+
+  addrList.innerHTML = modalAddrTemp.map((a, i) =>
+    `<div class="ka-item addr-item">
+      <div style="display:flex;justify-content:space-between;width:100%;">
+        <span style="font-family:var(--mono);font-size:11px;color:var(--accent);">Address ${i+1}</span>
+        <button class="ka-del" onclick="removeAddrTemp(${i})">×</button>
+      </div>
+      <span class="addr-text">${a}</span>
+    </div>`
+  ).join('') || '<div style="color:var(--muted);font-size:12px;">No addresses yet</div>';
+}
+
+function addKA() {
+  const val = document.getElementById('modal-ka-input').value.trim();
+  if (!val) return;
+  if (!modalKATemp.includes(val)) modalKATemp.push(val);
+  document.getElementById('modal-ka-input').value = '';
+  renderModalLists();
+}
+
+function addAddr() {
+  const val = document.getElementById('modal-addr-input').value.trim();
+  if (!val) return;
+  modalAddrTemp.push(val);
+  document.getElementById('modal-addr-input').value = '';
+  renderModalLists();
+}
+
+function removeKATemp(i) { modalKATemp.splice(i, 1); renderModalLists(); }
+function removeAddrTemp(i) { modalAddrTemp.splice(i, 1); renderModalLists(); }
+
+function saveModal() {
+  if (!currentModalParty) return;
+  if (!PARTY_BOOK[currentModalParty]) PARTY_BOOK[currentModalParty] = { ka: [], addr: [] };
+
+  // --- NEW: Automatically catch un-added text in the inputs ---
+  const pendingKA = document.getElementById('modal-ka-input').value.trim();
+  if (pendingKA && !modalKATemp.includes(pendingKA)) {
+    modalKATemp.push(pendingKA);
+  }
+
+  const pendingAddr = document.getElementById('modal-addr-input').value.trim();
+  if (pendingAddr) {
+    modalAddrTemp.push(pendingAddr);
+  }
+  // -----------------------------------------------------------
+
+  PARTY_BOOK[currentModalParty].ka = [...modalKATemp];
+  PARTY_BOOK[currentModalParty].addr = [...modalAddrTemp];
+  savePB();
+  // Remind user to save to PC file
+  setTimeout(() => { if(confirm('Party data updated! Click OK to save your data file to PC now (recommended).')) saveDataFile(); }, 300);
+
+  // Refresh cover letter fields if this party is the currently searched one
+  if (currentSearchParty && currentSearchParty === currentModalParty) {
+    loadPartyKAAndAddr(currentSearchParty);
+  }
+
+  closeModalDirect();
+  renderPartyBook();
+}
+
+function closeModal(e) { if (e.target === document.getElementById('modal-overlay')) closeModalDirect(); }
+function closeModalDirect() {
+  document.getElementById('modal-overlay').classList.add('hidden');
+  currentModalParty = null;
+}
+
+// Enter key to add K/A
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('modal-ka-input') === document.activeElement) addKA();
+});
+
+// ── Helpers ──
+function fmtDate(str) {
+  if (!str) return '—';
+  const [y,m,d] = str.split('-');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${parseInt(d)}-${months[parseInt(m)-1]}-${y}`;
+}
+
+function fmtNum(n) {
+  return (parseFloat(n)||0).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+}
+
+function numberToWords(num) {
+  if (num === 0) return 'Zero Rupees Only';
+  const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+  const tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+  function convert(n) {
+    if (n < 20) return ones[n];
+    if (n < 100) return tens[Math.floor(n/10)] + (n%10 ? ' '+ones[n%10] : '');
+    if (n < 1000) return ones[Math.floor(n/100)] + ' Hundred' + (n%100 ? ' '+convert(n%100) : '');
+    if (n < 100000) return convert(Math.floor(n/1000)) + ' Thousand' + (n%1000 ? ' '+convert(n%1000) : '');
+    if (n < 10000000) return convert(Math.floor(n/100000)) + ' Lakh' + (n%100000 ? ' '+convert(n%100000) : '');
+    return convert(Math.floor(n/10000000)) + ' Crore' + (n%10000000 ? ' '+convert(n%10000000) : '');
+  }
+  return convert(num) + ' Rupees Only';
+}
+
+// ── Init ──
+loadAll();
+</script>
+</body>
+</html>
