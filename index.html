@@ -695,7 +695,10 @@ async function saveDB() {
 }
 
 async function savePB() {
-  await rtdbSet('sf_data/party_book', { data: PARTY_BOOK, _updated: new Date().toISOString() });
+  // Stringify the data to prevent Firebase from dropping empty arrays
+  // and to allow Tally party names with periods (e.g., "PVT. LTD.")
+  const payload = JSON.stringify(PARTY_BOOK);
+  await rtdbSet('sf_data/party_book', { data: payload, _updated: new Date().toISOString() });
 }
 
 async function saveDone() {
@@ -713,9 +716,21 @@ async function loadAll() {
     const pbData   = await rtdbGet('sf_data/party_book');
     const doneData = await rtdbGet('sf_data/done_set');
 
-    DB         = dbData   ? (dbData.records   || []) : [];
-    PARTY_BOOK = pbData   ? (pbData.data       || {}) : {};
-    DONE_SET   = new Set(doneData ? (doneData.vchNos || []) : []);
+    DB       = dbData   ? (dbData.records   || []) : [];
+    DONE_SET = new Set(doneData ? (doneData.vchNos || []) : []);
+
+    // Safely parse the stringified Party Book, with fallback for old un-stringified data
+    if (pbData && typeof pbData.data === 'string') {
+      try { PARTY_BOOK = JSON.parse(pbData.data); } catch(e) { PARTY_BOOK = {}; }
+    } else {
+      PARTY_BOOK = pbData ? (pbData.data || {}) : {};
+    }
+
+    // Restore missing arrays dropped by older Firebase saves
+    Object.keys(PARTY_BOOK).forEach(p => {
+      if (!PARTY_BOOK[p].ka) PARTY_BOOK[p].ka = [];
+      if (!PARTY_BOOK[p].addr) PARTY_BOOK[p].addr = [];
+    });
 
     updateStats();
     setSyncStatus('synced');
@@ -1015,26 +1030,25 @@ function hideSuggestions() { setTimeout(() => { document.getElementById('suggest
 
 function loadPartyKAAndAddr(party) {
   const pb = PARTY_BOOK[party] || { ka: [], addr: [] };
-
-  // K/A suggestions
+  const ka = pb.ka || []; // Fallback 
   const attnInput = document.getElementById('cl-attn');
-  if (pb.ka.length === 1) {
-    attnInput.value = pb.ka[0];
+  
+  if (ka.length === 1) {
+    attnInput.value = ka[0];
   } else {
     attnInput.value = '';
   }
-
-  // Address pills
   renderAddrPills(party);
 }
 
 function renderAddrPills(party) {
   const pb = PARTY_BOOK[party] || { ka: [], addr: [] };
+  const addr = pb.addr || []; // Fallback to prevent .forEach crash
   const pillRow = document.getElementById('addr-pills');
   const addrSel = document.getElementById('addr-select');
 
   addrSel.innerHTML = '<option value="">— select address —</option>';
-  pb.addr.forEach((a, i) => {
+  addr.forEach((a, i) => {
     const opt = document.createElement('option');
     opt.value = i;
     opt.textContent = a.split('\n')[0].substring(0, 50) + (a.length > 50 ? '…' : '');
@@ -1042,8 +1056,8 @@ function renderAddrPills(party) {
   });
 
   pillRow.innerHTML = '';
-  if (pb.addr.length > 1) {
-    pb.addr.forEach((a, i) => {
+  if (addr.length > 1) {
+    addr.forEach((a, i) => {
       const pill = document.createElement('span');
       pill.className = 'pill';
       pill.textContent = `Addr ${i+1}`;
@@ -1060,7 +1074,8 @@ function onAttnInput() {
   const box = document.getElementById('attn-suggestions');
   if (!party || val.length < 1) { box.style.display = 'none'; return; }
   const pb = PARTY_BOOK[party] || { ka: [] };
-  const matches = pb.ka.filter(k => k.toLowerCase().includes(val.toLowerCase()));
+  const ka = pb.ka || [];
+  const matches = ka.filter(k => k.toLowerCase().includes(val.toLowerCase()));
   if (!matches.length) { box.style.display = 'none'; return; }
   box.innerHTML = matches.map(k => `<div class="suggestion-item" onmousedown="document.getElementById('cl-attn').value='${k.replace(/'/g,"\\'")}'; document.getElementById('attn-suggestions').style.display='none';">${k}</div>`).join('');
   box.style.display = 'block';
@@ -1165,6 +1180,7 @@ function generatePDF() {
   // Save the K/A name if new
   if (attn && party) {
     if (!PARTY_BOOK[party]) PARTY_BOOK[party] = { ka: [], addr: [] };
+    if (!PARTY_BOOK[party].ka) PARTY_BOOK[party].ka = [];
     if (!PARTY_BOOK[party].ka.includes(attn)) {
       PARTY_BOOK[party].ka.push(attn);
       savePB();
@@ -1313,17 +1329,15 @@ function generatePDF() {
 }
 
 // ── Print Address (Envelope C5 landscape) ──
-// ── Print Address (Envelope C5 landscape) ──
-// ── Print Address (Envelope C5 landscape) ──
-// ── Print Address (Envelope C5 landscape) ──
 function printAddress() {
   const party = currentSearchParty || document.getElementById('search-party').value.trim();
 
   if (!party) { alert('Please search for a party first.'); return; }
 
   const pb = PARTY_BOOK[party] || { ka: [], addr: [] };
+  const addr = pb.addr || [];
 
-  if (!pb.addr.length) {
+  if (!addr.length) {
     alert('No address saved for this party.\n\nClick "Manage K/A & Addresses" button to add addresses first.');
     return;
   }
@@ -1333,11 +1347,11 @@ function printAddress() {
   // selVal is "" (no selection) or "0", "1", "2"...
   let addrText;
   if (selVal === '' || selVal === null || selVal === undefined) {
-    addrText = pb.addr[0]; // default to first
+    addrText = addr[0]; // default to first
   } else {
-    addrText = pb.addr[parseInt(selVal, 10)];
+    addrText = addr[parseInt(selVal, 10)];
   }
-  if (!addrText) { addrText = pb.addr[0]; }
+  if (!addrText) { addrText = addr[0]; }
   if (!addrText) { alert('Please select a valid address.'); return; }
 
   // C5 envelope: 229mm × 162mm, landscape = 229w × 162h
@@ -1405,8 +1419,10 @@ function renderPartyBook() {
   let html = '<div class="tbl-wrap"><table><thead><tr><th>Party Name</th><th>K/A Names</th><th>Addresses</th><th></th></tr></thead><tbody>';
   parties.forEach(p => {
     const pb = PARTY_BOOK[p] || { ka: [], addr: [] };
-    const kaStr = pb.ka.length ? pb.ka.join(', ') : '<span style="color:var(--muted)">—</span>';
-    const addrStr = pb.addr.length ? `${pb.addr.length} address${pb.addr.length>1?'es':''}` : '<span style="color:var(--muted)">—</span>';
+    const ka = pb.ka || []; // Fallback
+    const addr = pb.addr || []; // Fallback
+    const kaStr = ka.length ? ka.join(', ') : '<span style="color:var(--muted)">—</span>';
+    const addrStr = addr.length ? `${addr.length} address${addr.length>1?'es':''}` : '<span style="color:var(--muted)">—</span>';
     html += `<tr>
       <td class="mono">${p}</td>
       <td style="font-size:12px; max-width:260px;">${kaStr}</td>
@@ -1541,7 +1557,7 @@ function numberToWords(num) {
     if (n < 100) return tens[Math.floor(n/10)] + (n%10 ? ' '+ones[n%10] : '');
     if (n < 1000) return ones[Math.floor(n/100)] + ' Hundred' + (n%100 ? ' '+convert(n%100) : '');
     if (n < 100000) return convert(Math.floor(n/1000)) + ' Thousand' + (n%1000 ? ' '+convert(n%1000) : '');
-    if (n < 10000000) return convert(Math.floor(n/100000)) + ' Lakh' + (n%100000 ? ' '+convert(n%100000) : '');
+    if (n < 1000000) return convert(Math.floor(n/100000)) + ' Lakh' + (n%100000 ? ' '+convert(n%100000) : '');
     return convert(Math.floor(n/10000000)) + ' Crore' + (n%10000000 ? ' '+convert(n%10000000) : '');
   }
   return convert(num) + ' Rupees Only';
