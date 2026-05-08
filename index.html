@@ -7,14 +7,15 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<!-- Firebase SDKs -->
+<!-- Firebase SDKs (Realtime Database) -->
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getFirestore, doc, setDoc, getDoc, collection, getDocs, writeBatch, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
+  import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-database.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyBexlrTxfeo49hcDLL_Q1VpM7_qeUWJS64",
     authDomain: "suraj-forwarders.firebaseapp.com",
+    databaseURL: "https://suraj-forwarders-default-rtdb.firebaseio.com",
     projectId: "suraj-forwarders",
     storageBucket: "suraj-forwarders.firebasestorage.app",
     messagingSenderId: "530718510879",
@@ -22,19 +23,14 @@
   };
 
   const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
+  const rtdb = getDatabase(app);
 
-  // Expose Firestore helpers to global scope
-  window._fs = {
-    db,
-    doc: (path, id) => doc(db, path, id),
-    setDoc,
-    getDoc,
-    collection: (path) => collection(db, path),
-    getDocs,
-    writeBatch: () => writeBatch(db),
-    deleteDoc,
-    onSnapshot
+  // Expose Realtime Database helpers to global scope
+  window._rtdb = {
+    ref: (path) => ref(rtdb, path),
+    set,
+    get,
+    child
   };
 
   // Signal that Firebase is ready
@@ -660,15 +656,14 @@ let modalAddrTemp = [];
 
 // ── Sync Status ──
 function setSyncStatus(state) {
-  // state: 'connecting' | 'synced' | 'saving' | 'error'
   const dot = document.getElementById('sync-dot');
   const lbl = document.getElementById('sync-label');
   if (!dot || !lbl) return;
   const map = {
-    connecting: { color: '#888', text: 'Connecting…' },
-    synced:     { color: '#5a9c7a', text: '● Cloud Synced' },
-    saving:     { color: '#c8a96e', text: '↑ Saving…' },
-    error:      { color: '#c46a5a', text: '⚠ Sync Error' }
+    connecting: { color: '#888',     text: 'Connecting…' },
+    synced:     { color: '#5a9c7a',  text: '● Cloud Synced' },
+    saving:     { color: '#c8a96e',  text: '↑ Saving…' },
+    error:      { color: '#c46a5a',  text: '⚠ Sync Error' }
   };
   const s = map[state] || map.connecting;
   dot.style.background = s.color;
@@ -676,58 +671,57 @@ function setSyncStatus(state) {
   lbl.style.color = s.color;
 }
 
-// ── Firebase helpers ──
-async function fsSet(path, id, data) {
+// ── Firebase Realtime Database helpers ──
+async function rtdbSet(path, data) {
   setSyncStatus('saving');
   try {
-    await window._fs.setDoc(window._fs.doc(path, id), data);
+    await window._rtdb.set(window._rtdb.ref(path), data);
     setSyncStatus('synced');
   } catch(e) {
-    console.error('Firestore write error:', e);
+    console.error('RTDB write error:', e);
     setSyncStatus('error');
+    throw e;
   }
 }
 
-// ── Persist / Load (Firebase Firestore) ──
+async function rtdbGet(path) {
+  const snapshot = await window._rtdb.get(window._rtdb.ref(path));
+  return snapshot.exists() ? snapshot.val() : null;
+}
+
+// ── Persist / Load (Firebase Realtime Database) ──
 async function saveDB() {
-  // Save invoice DB as a single document (chunked if needed)
-  await fsSet('sf_data', 'invoice_db', { records: DB, _updated: new Date().toISOString() });
+  await rtdbSet('sf_data/invoice_db', { records: DB, _updated: new Date().toISOString() });
 }
 
 async function savePB() {
-  await fsSet('sf_data', 'party_book', { data: PARTY_BOOK, _updated: new Date().toISOString() });
+  await rtdbSet('sf_data/party_book', { data: PARTY_BOOK, _updated: new Date().toISOString() });
 }
 
 async function saveDone() {
-  await fsSet('sf_data', 'done_set', { vchNos: [...DONE_SET], _updated: new Date().toISOString() });
+  await rtdbSet('sf_data/done_set', { vchNos: [...DONE_SET], _updated: new Date().toISOString() });
 }
 
 async function loadAll() {
   setSyncStatus('connecting');
-  // Wait for Firebase to be ready
+  // Wait for Firebase module to finish loading
   if (!window._firebaseReady) {
     await new Promise(resolve => document.addEventListener('firebase-ready', resolve, { once: true }));
   }
   try {
-    const fs = window._fs;
+    const dbData   = await rtdbGet('sf_data/invoice_db');
+    const pbData   = await rtdbGet('sf_data/party_book');
+    const doneData = await rtdbGet('sf_data/done_set');
 
-    // Load invoice DB
-    const dbSnap = await fs.getDoc(fs.doc('sf_data', 'invoice_db'));
-    DB = dbSnap.exists() ? (dbSnap.data().records || []) : [];
-
-    // Load party book
-    const pbSnap = await fs.getDoc(fs.doc('sf_data', 'party_book'));
-    PARTY_BOOK = pbSnap.exists() ? (pbSnap.data().data || {}) : {};
-
-    // Load done set
-    const doneSnap = await fs.getDoc(fs.doc('sf_data', 'done_set'));
-    DONE_SET = new Set(doneSnap.exists() ? (doneSnap.data().vchNos || []) : []);
+    DB         = dbData   ? (dbData.records   || []) : [];
+    PARTY_BOOK = pbData   ? (pbData.data       || {}) : {};
+    DONE_SET   = new Set(doneData ? (doneData.vchNos || []) : []);
 
     updateStats();
     setSyncStatus('synced');
 
     const recCount = DB.length;
-    const pbCount = Object.keys(PARTY_BOOK).length;
+    const pbCount  = Object.keys(PARTY_BOOK).length;
     if (recCount > 0 || pbCount > 0) {
       log(`☁ Loaded from Firebase: ${recCount} invoice records, ${pbCount} parties.`, 'ok');
     } else {
@@ -743,7 +737,7 @@ async function loadAll() {
   }
 }
 
-// ── Legacy file-based export (kept as backup) ──
+// ── Backup download (optional, keeps a local copy) ──
 function saveDataFile() {
   const payload = {
     _version: 1,
