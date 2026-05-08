@@ -786,7 +786,7 @@ function handleFile(file) {
   const reader = new FileReader();
   reader.onload = e => {
     try {
-      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: false });
       const sheetName = wb.SheetNames.find(n => n.toLowerCase().includes('sales')) || wb.SheetNames[0];
       log(`Found sheet: "${sheetName}"`, 'ok');
       const ws = wb.Sheets[sheetName];
@@ -826,19 +826,23 @@ function handleFile(file) {
         if (!party || !vchNo || party === 'Particulars' || vchNo === 'Vch No.' || party.toLowerCase().startsWith('total')) { badRows++; continue; }
 
         let dateStr = '';
-        if (dateRaw instanceof Date) {
-          const y = dateRaw.getUTCFullYear();
-          const m = String(dateRaw.getUTCMonth() + 1).padStart(2, '0');
-          const d = String(dateRaw.getUTCDate()).padStart(2, '0');
-          dateStr = `${y}-${m}-${d}`;
+        
+        if (typeof dateRaw === 'string' && dateRaw.trim().length >= 8) {
+        
+          // Tally format: DD/MM/YYYY
+          const parts = dateRaw.trim().split('/');
+        
+          if (parts.length === 3) {
+            dateStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
+          }
+        
         } else if (typeof dateRaw === 'number' && dateRaw > 40000) {
-          const d = new Date((dateRaw - 25569) * 86400 * 1000);
-          const y = d.getUTCFullYear();
-          const m = String(d.getUTCMonth() + 1).padStart(2, '0');
-          const dy = String(d.getUTCDate()).padStart(2, '0');
-          dateStr = `${y}-${m}-${dy}`;
-        } else if (typeof dateRaw === 'string' && dateRaw.length >= 8) {
-          dateStr = dateRaw.slice(0, 10);
+        
+          // Excel serial fallback
+          const d = new Date(Math.round((dateRaw - 25569) * 86400) * 1000);
+        
+          dateStr =
+            `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
         }
 
         if (!dateStr || dateStr < '2000-01-01') { badRows++; continue; }
