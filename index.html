@@ -848,7 +848,7 @@ function handleFile(file) {
       }
 
       log(`Done: +${added} new records | ${skipped} duplicates skipped | ${badRows} non-data rows ignored`, added > 0 ? 'ok' : 'warn');
-      if (added > 0) log('☁ Saving to Firebase…', 'warn');
+      if (added > 0) log('☁ Saving…', 'warn');
       saveDB();
       updateStats();
     } catch(err) {
