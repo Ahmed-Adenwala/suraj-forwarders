@@ -833,8 +833,11 @@ function handleFile(file) {
           const d = String(dateRaw.getDate()).padStart(2, '0');
           dateStr = `${y}-${m}-${d}`;
         } else if (typeof dateRaw === 'number' && dateRaw > 40000) {
-          const d = new Date((dateRaw - 25569 + 1) * 86400 * 1000);
-          dateStr = d.toISOString().slice(0, 10);
+          const d = new Date((dateRaw - 25569) * 86400 * 1000);
+          const y = d.getUTCFullYear();
+          const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+          const dy = String(d.getUTCDate()).padStart(2, '0');
+          dateStr = `${y}-${m}-${dy}`;
         } else if (typeof dateRaw === 'string' && dateRaw.length >= 8) {
           dateStr = dateRaw.slice(0, 10);
         }
