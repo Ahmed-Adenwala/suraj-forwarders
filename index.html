@@ -7,6 +7,40 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<!-- Firebase SDKs -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, doc, setDoc, getDoc, collection, getDocs, writeBatch, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBexlrTxfeo49hcDLL_Q1VpM7_qeUWJS64",
+    authDomain: "suraj-forwarders.firebaseapp.com",
+    projectId: "suraj-forwarders",
+    storageBucket: "suraj-forwarders.firebasestorage.app",
+    messagingSenderId: "530718510879",
+    appId: "1:530718510879:web:ee1b6e73e270d456ad6a2a"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // Expose Firestore helpers to global scope
+  window._fs = {
+    db,
+    doc: (path, id) => doc(db, path, id),
+    setDoc,
+    getDoc,
+    collection: (path) => collection(db, path),
+    getDocs,
+    writeBatch: () => writeBatch(db),
+    deleteDoc,
+    onSnapshot
+  };
+
+  // Signal that Firebase is ready
+  window._firebaseReady = true;
+  document.dispatchEvent(new Event('firebase-ready'));
+</script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
 
@@ -426,10 +460,9 @@
     <p>Daily Sales Register · Cover Letter Generator</p>
   </div>
   <div class="badge">Records: <span id="total-count">0</span></div>
-  <div style="display:flex; gap:8px; margin-left:12px;">
-    <button class="btn btn-ghost btn-sm" onclick="saveDataFile()" title="Save all data to a file on your PC" style="padding:7px 14px; font-size:12px; border-color:#5a9c7a; color:#5a9c7a;">💾 Save Data</button>
-    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('load-data-input').click()" title="Load data file from your PC" style="padding:7px 14px; font-size:12px; border-color:#c8a96e; color:#c8a96e;">📂 Load Data</button>
-    <input type="file" id="load-data-input" accept=".json" style="display:none;" onchange="loadDataFile(event)">
+  <div style="display:flex; align-items:center; gap:8px; margin-left:12px; background:var(--surface2); border:1px solid var(--border); border-radius:3px; padding:6px 14px;">
+    <span id="sync-dot" style="width:9px;height:9px;border-radius:50%;background:#555;display:inline-block;flex-shrink:0;"></span>
+    <span id="sync-label" style="font-family:var(--mono);font-size:11px;color:var(--muted);">Connecting…</span>
   </div>
 </header>
 
@@ -467,7 +500,7 @@
   </div>
 
   <div style="display:flex; gap:12px; margin-top: 8px;">
-    <button class="btn btn-outline" onclick="exportData()">⬇ Export All Data (JSON backup)</button>
+    <button class="btn btn-outline" onclick="exportData()">⬇ Download Backup (JSON)</button>
     <button class="btn btn-danger btn-sm" onclick="clearAllData()">🗑 Clear All Data</button>
   </div>
 </div>
@@ -618,36 +651,99 @@
 let DB = [];
 let PARTY_BOOK = {}; // { PARTY_NAME: { ka: [...], addr: [...] } }
 let DONE_SET = new Set(); // vchNo strings that have been generated
-const STORAGE_KEY = 'sf_invoice_db';
-const PB_KEY = 'sf_party_book';
-const DONE_KEY = 'sf_done_set';
 
 let searchResults = [];
-let currentSearchParty = null; // exact party name from DB records
+let currentSearchParty = null;
 let currentModalParty = null;
 let modalKATemp = [];
 let modalAddrTemp = [];
 
-// ── Persist / Load (File-based — saves to your PC, not browser) ──
-// These are in-memory only; data is saved/loaded via JSON file on your PC.
-function saveDB() { /* in-memory only; use 💾 Save Data button to save to PC */ }
-function savePB() { /* in-memory only; use 💾 Save Data button to save to PC */ }
-function saveDone() { /* in-memory only; use 💾 Save Data button to save to PC */ }
-
-function loadAll() {
-  // On fresh open, start empty — user must click "📂 Load Data" to restore from their PC file
-  DB = [];
-  PARTY_BOOK = {};
-  DONE_SET = new Set();
-  updateStats();
-  // Show hint in upload log after page loads
-  setTimeout(() => {
-    log('👋 Welcome! Click "📂 Load Data" (top right) to restore your saved data from your PC.', 'warn');
-    log('After any changes, click "💾 Save Data" to save back to your PC file.', 'warn');
-  }, 200);
+// ── Sync Status ──
+function setSyncStatus(state) {
+  // state: 'connecting' | 'synced' | 'saving' | 'error'
+  const dot = document.getElementById('sync-dot');
+  const lbl = document.getElementById('sync-label');
+  if (!dot || !lbl) return;
+  const map = {
+    connecting: { color: '#888', text: 'Connecting…' },
+    synced:     { color: '#5a9c7a', text: '● Cloud Synced' },
+    saving:     { color: '#c8a96e', text: '↑ Saving…' },
+    error:      { color: '#c46a5a', text: '⚠ Sync Error' }
+  };
+  const s = map[state] || map.connecting;
+  dot.style.background = s.color;
+  lbl.textContent = s.text;
+  lbl.style.color = s.color;
 }
 
-// ── Save all data as a JSON file to PC ──
+// ── Firebase helpers ──
+async function fsSet(path, id, data) {
+  setSyncStatus('saving');
+  try {
+    await window._fs.setDoc(window._fs.doc(path, id), data);
+    setSyncStatus('synced');
+  } catch(e) {
+    console.error('Firestore write error:', e);
+    setSyncStatus('error');
+  }
+}
+
+// ── Persist / Load (Firebase Firestore) ──
+async function saveDB() {
+  // Save invoice DB as a single document (chunked if needed)
+  await fsSet('sf_data', 'invoice_db', { records: DB, _updated: new Date().toISOString() });
+}
+
+async function savePB() {
+  await fsSet('sf_data', 'party_book', { data: PARTY_BOOK, _updated: new Date().toISOString() });
+}
+
+async function saveDone() {
+  await fsSet('sf_data', 'done_set', { vchNos: [...DONE_SET], _updated: new Date().toISOString() });
+}
+
+async function loadAll() {
+  setSyncStatus('connecting');
+  // Wait for Firebase to be ready
+  if (!window._firebaseReady) {
+    await new Promise(resolve => document.addEventListener('firebase-ready', resolve, { once: true }));
+  }
+  try {
+    const fs = window._fs;
+
+    // Load invoice DB
+    const dbSnap = await fs.getDoc(fs.doc('sf_data', 'invoice_db'));
+    DB = dbSnap.exists() ? (dbSnap.data().records || []) : [];
+
+    // Load party book
+    const pbSnap = await fs.getDoc(fs.doc('sf_data', 'party_book'));
+    PARTY_BOOK = pbSnap.exists() ? (pbSnap.data().data || {}) : {};
+
+    // Load done set
+    const doneSnap = await fs.getDoc(fs.doc('sf_data', 'done_set'));
+    DONE_SET = new Set(doneSnap.exists() ? (doneSnap.data().vchNos || []) : []);
+
+    updateStats();
+    setSyncStatus('synced');
+
+    const recCount = DB.length;
+    const pbCount = Object.keys(PARTY_BOOK).length;
+    if (recCount > 0 || pbCount > 0) {
+      log(`☁ Loaded from Firebase: ${recCount} invoice records, ${pbCount} parties.`, 'ok');
+    } else {
+      log('☁ Connected to Firebase. No data yet — upload your first Excel file above.', 'warn');
+    }
+    renderPartyBook && renderPartyBook();
+  } catch(e) {
+    console.error('Firebase load error:', e);
+    setSyncStatus('error');
+    log('⚠ Could not connect to Firebase: ' + e.message, 'err');
+    DB = []; PARTY_BOOK = {}; DONE_SET = new Set();
+    updateStats();
+  }
+}
+
+// ── Legacy file-based export (kept as backup) ──
 function saveDataFile() {
   const payload = {
     _version: 1,
@@ -659,34 +755,10 @@ function saveDataFile() {
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'suraj_forwarders_data.json';
+  a.download = 'suraj_forwarders_backup.json';
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-  log('✅ Data saved! File: suraj_forwarders_data.json — keep it safe on your PC.', 'ok');
-}
-
-// ── Load data from a JSON file on PC ──
-function loadDataFile(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    try {
-      const payload = JSON.parse(e.target.result);
-      if (!payload.db || !Array.isArray(payload.db)) { alert('Invalid data file. Please select the correct suraj_forwarders_data.json file.'); return; }
-      DB = payload.db || [];
-      PARTY_BOOK = payload.partyBook || {};
-      DONE_SET = new Set(payload.doneSet || []);
-      updateStats();
-      log(`✅ Data loaded! ${DB.length} invoice records, ${Object.keys(PARTY_BOOK).length} parties restored.`, 'ok');
-      renderPartyBook && renderPartyBook();
-    } catch(err) {
-      alert('Could not read file: ' + err.message);
-    }
-  };
-  reader.readAsText(file);
-  // Reset input so same file can be reloaded if needed
-  event.target.value = '';
+  log('✅ Backup file downloaded.', 'ok');
 }
 
 // ── Navigation ──
@@ -761,7 +833,11 @@ function handleFile(file) {
 
         let dateStr = '';
         if (dateRaw instanceof Date) {
-          dateStr = dateRaw.toISOString().slice(0, 10);
+          // Use local date parts to avoid UTC offset shifting the date (e.g. IST = UTC+5:30)
+          const y = dateRaw.getFullYear();
+          const m = String(dateRaw.getMonth() + 1).padStart(2, '0');
+          const d = String(dateRaw.getDate()).padStart(2, '0');
+          dateStr = `${y}-${m}-${d}`;
         } else if (typeof dateRaw === 'number' && dateRaw > 40000) {
           const d = new Date((dateRaw - 25569) * 86400 * 1000);
           dateStr = d.toISOString().slice(0, 10);
@@ -778,7 +854,7 @@ function handleFile(file) {
       }
 
       log(`Done: +${added} new records | ${skipped} duplicates skipped | ${badRows} non-data rows ignored`, added > 0 ? 'ok' : 'warn');
-      if (added > 0) log('💡 Remember to click "💾 Save Data" (top right) to save your updated data to your PC!', 'warn');
+      if (added > 0) log('☁ Saving to Firebase…', 'warn');
       saveDB();
       updateStats();
     } catch(err) {
@@ -807,12 +883,13 @@ function exportData() {
   saveDataFile();
 }
 
-function clearAllData() {
-  if (!confirm('Clear ALL stored records? This cannot be undone.')) return;
+async function clearAllData() {
+  if (!confirm('Clear ALL stored records from Firebase? This cannot be undone.')) return;
   DB = []; DONE_SET = new Set();
-  saveDB(); saveDone();
+  await saveDB();
+  await saveDone();
   updateStats();
-  log('All data cleared.', 'warn');
+  log('All data cleared from Firebase.', 'warn');
 }
 
 // ── SUBJECT LINE LOGIC ──
@@ -1207,9 +1284,6 @@ function generatePDF() {
   selectedRows.forEach(r => DONE_SET.add(r.vchNo));
   saveDone();
   updateStats();
-  // Remind user to save their data file
-  setTimeout(() => { if(confirm('Bills marked as done! Save your data file to PC now?')) saveDataFile(); }, 1500);
-
   // ── Save PDF ──
   const pdfBlob = doc.output('blob');
   const blobUrl = URL.createObjectURL(pdfBlob);
@@ -1409,9 +1483,10 @@ function removeAddrTemp(i) { modalAddrTemp.splice(i, 1); renderModalLists(); }
 
 function saveModal() {
   if (!currentModalParty) return;
-  if (!PARTY_BOOK[currentModalParty]) PARTY_BOOK[currentModalParty] = { ka: [], addr: [] };
 
-  // --- NEW: Automatically catch un-added text in the inputs ---
+  if (!PARTY_BOOK[currentModalParty])
+    PARTY_BOOK[currentModalParty] = { ka: [], addr: [] };
+
   const pendingKA = document.getElementById('modal-ka-input').value.trim();
   if (pendingKA && !modalKATemp.includes(pendingKA)) {
     modalKATemp.push(pendingKA);
@@ -1421,15 +1496,12 @@ function saveModal() {
   if (pendingAddr) {
     modalAddrTemp.push(pendingAddr);
   }
-  // -----------------------------------------------------------
 
   PARTY_BOOK[currentModalParty].ka = [...modalKATemp];
   PARTY_BOOK[currentModalParty].addr = [...modalAddrTemp];
-  savePB();
-  // Remind user to save to PC file
-  setTimeout(() => { if(confirm('Party data updated! Click OK to save your data file to PC now (recommended).')) saveDataFile(); }, 300);
 
-  // Refresh cover letter fields if this party is the currently searched one
+  savePB();
+
   if (currentSearchParty && currentSearchParty === currentModalParty) {
     loadPartyKAAndAddr(currentSearchParty);
   }
@@ -1437,7 +1509,6 @@ function saveModal() {
   closeModalDirect();
   renderPartyBook();
 }
-
 function closeModal(e) { if (e.target === document.getElementById('modal-overlay')) closeModalDirect(); }
 function closeModalDirect() {
   document.getElementById('modal-overlay').classList.add('hidden');
@@ -1477,27 +1548,7 @@ function numberToWords(num) {
 }
 
 // ── Init ──
-
-</script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-
-<script>
-const firebaseConfig = {
-  apiKey: "AIzaSyBexlrTxfeo49hcDLL_Q1VpM7_qeUWJS64",
-  authDomain: "suraj-forwarders.firebaseapp.com",
-  projectId: "suraj-forwarders",
-  storageBucket: "suraj-forwarders.firebasestorage.app",
-  messagingSenderId: "530718510879",
-  appId: "1:530718510879:web:ee1b6e73e270d456ad6a2a"
-};
-
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-
-// ✅ NOW call loadAll AFTER Firebase is ready
-loadAll();
+loadAll().catch(e => { console.error(e); });
 </script>
 </body>
 </html>
