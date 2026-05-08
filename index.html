@@ -1312,24 +1312,24 @@ function generatePDF() {
   a.click();
   document.body.removeChild(a);
 
-  // 2. Open in new tab IMMEDIATELY (Removed setTimeout to bypass popup blockers)
-  window.open(blobUrl, '_blank');
-
-  // 3. Trigger printer via iframe (Wrapped in try/catch to prevent security crashes)
+  // 2. Trigger printer via hidden iframe
   try {
     const frame = document.getElementById('print-frame');
     frame.src = blobUrl;
     frame.onload = function() {
       try {
         frame.contentWindow.focus();
-        frame.contentWindow.print();
+        frame.contentWindow.print(); // Triggers the print popup
       } catch (err) {
-        console.warn('Silent iframe print blocked by browser security. User must print manually.', err);
+        console.warn('Silent iframe print blocked by browser. Falling back to new tab.', err);
+        // Fallback: ONLY opens a new tab if the automatic print dialog fails
+        window.open(blobUrl, '_blank');
       }
       setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
     };
   } catch(e) {
     console.error('Iframe rendering failed', e);
+    window.open(blobUrl, '_blank'); // Fallback
   }
 
   // Refresh search results to reflect done status
