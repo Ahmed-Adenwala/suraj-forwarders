@@ -1360,52 +1360,42 @@ function printAddress() {
   if (!addrText) { alert('Please select a valid address.'); return; }
 
   // C5 envelope: 229mm × 162mm, landscape = 229w × 162h
-  const printWin = window.open('', '_blank', 'width=900,height=700');
-  printWin.document.write(`<!DOCTYPE html>
+const envelopeHTML = `<!DOCTYPE html>
 <html><head>
 <meta charset="UTF-8">
 <title>Envelope - ${party}</title>
 <style>
-  @page {
-    size: 229mm 162mm landscape;
-    margin: 0;
-  }
+  @page { size: 229mm 162mm landscape; margin: 0; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    width: 229mm;
-    height: 162mm;
+    width: 229mm; height: 162mm;
     font-family: 'Times New Roman', Times, serif;
-    background: white;
-    color: #000;
-    
-    /* Center vertically, push to the right horizontally */
-    display: flex;
-    align-items: center; 
-    justify-content: flex-end; 
-    
-    /* Reduced from 30mm to 10mm to push the text much closer to the right edge */
-    padding-right: 00mm; 
+    background: white; color: #000;
+    display: flex; align-items: center; justify-content: flex-end;
+    padding-right: 0mm;
   }
-  .recipient {
-    text-align: left;
-    width: 110mm; /* Keeps the text from stretching too wide */
-  }
-  .recipient .address { 
-    font-size: 12pt; /* Set text size to 12 */
-    line-height: 1.6; 
-    white-space: pre-wrap; 
-    font-weight: bold; /* Makes it pop nicely for the post office */
-  }
+  .recipient { text-align: left; width: 110mm; }
+  .recipient .address { font-size: 12pt; line-height: 1.6; white-space: pre-wrap; font-weight: bold; }
 </style>
 </head><body>
 <div class="recipient">
-  <!-- ONLY the exact text you saved is printed here -->
   <div class="address">${addrText.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
 </div>
-<script>window.onload = function() { window.print(); }<\/script>
-</body></html>`);
-  printWin.document.close();
-}
+</body></html>`;
+
+  const blob = new Blob([envelopeHTML], { type: 'text/html' });
+  const blobUrl = URL.createObjectURL(blob);
+  const frame = document.getElementById('print-frame');
+  frame.src = blobUrl;
+  frame.onload = function() {
+    try {
+      frame.contentWindow.focus();
+      frame.contentWindow.print();
+    } catch(err) {
+      console.warn('Envelope print blocked.', err);
+    }
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
+  };
 
 // ── Party Book Page ──
 function renderPartyBook() {
