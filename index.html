@@ -456,7 +456,7 @@
     border: 1px solid #2a3d32;
     border-left: 3px solid var(--accent2);
     border-radius: 3px;
-    padding: 8px 10px;
+    padding: 6px 8px;
     font-family: var(--mono);
     font-size: 11px;
     line-height: 1.5;
@@ -649,7 +649,6 @@
             </select>
             <!-- Preview sits to the right of the dropdown -->
             <div class="addr-preview-box" id="addr-preview-box">
-              <div class="addr-preview-label">Preview</div>
               <div id="addr-preview-text"></div>
             </div>
           </div>
@@ -1220,8 +1219,9 @@ function updateAddrPreview() {
     previewText.textContent = '';
     return;
   }
-  previewText.textContent = addrText;
+previewText.textContent = addrText;
   previewBox.classList.add('visible');
+  setTimeout(() => { previewBox.scrollTop = previewBox.scrollHeight; }, 10);
 }
 
 function renderAddrPills(party) {
