@@ -25,7 +25,6 @@
   const app = initializeApp(firebaseConfig);
   const rtdb = getDatabase(app);
 
-  // Expose Realtime Database helpers to global scope
   window._rtdb = {
     ref: (path) => ref(rtdb, path),
     set,
@@ -33,7 +32,6 @@
     child
   };
 
-  // Signal that Firebase is ready
   window._firebaseReady = true;
   document.dispatchEvent(new Event('firebase-ready'));
 </script>
@@ -144,7 +142,6 @@
   .page { display: none; padding: 32px; max-width: 1200px; }
   .page.active { display: block; }
 
-  /* ── Upload Page ── */
   .upload-zone {
     border: 2px dashed var(--border);
     background: var(--surface);
@@ -256,8 +253,21 @@
     overflow-y: auto;
   }
 
-  .suggestion-item { padding: 8px 14px; cursor: pointer; font-size: 13px; transition: background 0.15s; }
+  .suggestion-item {
+    padding: 8px 14px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background 0.15s;
+  }
   .suggestion-item:hover { background: #2a2a2a; color: var(--accent); }
+  /* ── NEW: keyboard highlight style ── */
+  .suggestion-item.highlighted {
+    background: #2e2518;
+    color: var(--accent);
+    border-left: 2px solid var(--accent);
+    padding-left: 12px;
+  }
+
   .relative { position: relative; }
 
   .btn {
@@ -337,7 +347,6 @@
   .party-group-header .count { font-family: var(--mono); font-size: 11px; color: var(--muted); }
   .party-group table { border-radius: 0; border: 1px solid var(--border); border-top: none; }
 
-  /* Step blocks */
   .step-block { margin-bottom: 28px; }
   .step-label {
     display: flex;
@@ -363,7 +372,6 @@
     flex-shrink: 0;
   }
 
-  /* Party & KA management panel */
   .modal-overlay {
     position: fixed; inset: 0;
     background: rgba(0,0,0,0.75);
@@ -439,7 +447,40 @@
   .done-row td { opacity: 0.4; }
   .done-badge { font-family: var(--mono); font-size: 10px; color: #7070b0; background: #1a1a2e; padding: 2px 7px; border-radius: 2px; }
 
-  /* Address print area (hidden in UI, printed via window.print) */
+  /* ── NEW: Address Preview Box ── */
+  .addr-preview-box {
+    margin-top: 10px;
+    background: #141a17;
+    border: 1px solid #2a3d32;
+    border-left: 3px solid var(--accent2);
+    border-radius: 3px;
+    padding: 12px 14px;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text);
+    white-space: pre-wrap;
+    min-height: 48px;
+    transition: border-color 0.2s;
+    display: none; /* hidden until an address is selected */
+  }
+  .addr-preview-box.visible { display: block; }
+  .addr-preview-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--accent2);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .addr-preview-label::before {
+    content: '📬';
+    font-size: 11px;
+  }
+
   @media print {
     body > *:not(#addr-print-area) { display: none !important; }
     #addr-print-area { display: block !important; }
@@ -537,7 +578,12 @@
     <div class="search-bar">
       <div class="field-group relative">
         <label>Party Name</label>
-        <input type="text" id="search-party" placeholder="e.g. INVENTA SYSTEMS" oninput="onPartyInput()" onblur="hideSuggestions()" autocomplete="off">
+        <input type="text" id="search-party"
+          placeholder="e.g. INVENTA SYSTEMS"
+          oninput="onPartyInput()"
+          onblur="hideSuggestions()"
+          onkeydown="onPartyKeyDown(event)"
+          autocomplete="off">
         <div class="suggestions" id="suggestions" style="display:none;"></div>
       </div>
       <div class="field-group">
@@ -570,18 +616,25 @@
   <div class="step-block" id="step3-block" style="display:none;">
     <div class="step-label"><span class="step-num">3</span> Kind Attention &amp; Print PDF</div>
     <div>
-      <div style="display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap;">
+      <div style="display:flex; align-items:flex-start; gap:16px; flex-wrap:wrap;">
         <div class="field-group relative" style="flex:1; min-width:280px;">
           <label>Kind Attention (Contact Name)</label>
           <input type="text" id="cl-attn" placeholder="e.g. MR. Priyank Shah" style="width:100%;" oninput="onAttnInput()" onblur="hideAttnSuggestions()" autocomplete="off">
           <div class="suggestions" id="attn-suggestions" style="display:none; width:100%;"></div>
         </div>
-        <div class="field-group" style="flex:1; min-width:200px;">
+
+        <!-- ── Address field + preview ── -->
+        <div class="field-group" style="flex:1; min-width:240px;">
           <label>Party Address (for envelope)</label>
           <div class="pill-row" id="addr-pills"></div>
-          <select id="addr-select" style="width:100%; font-size:12px;">
+          <select id="addr-select" style="width:100%; font-size:12px;" onchange="updateAddrPreview()">
             <option value="">— select address —</option>
           </select>
+          <!-- NEW: Address Preview Box -->
+          <div class="addr-preview-box" id="addr-preview-box">
+            <div class="addr-preview-label">Address Preview</div>
+            <div id="addr-preview-text"></div>
+          </div>
         </div>
       </div>
 
@@ -610,7 +663,7 @@
   <div id="party-book-list"></div>
 </div>
 
-<!-- ── MODAL for editing party KA & address ── -->
+<!-- ── MODAL ── -->
 <div class="modal-overlay hidden" id="modal-overlay" onclick="closeModal(event)">
   <div class="modal-box" onclick="event.stopPropagation()">
     <h2 id="modal-title">Party Settings</h2>
@@ -637,22 +690,23 @@
   </div>
 </div>
 
-<!-- Address print area -->
 <div id="addr-print-area"></div>
-
 <iframe id="print-frame" style="position:fixed;width:0;height:0;border:none;left:-9999px;top:-9999px;"></iframe>
 
 <script>
 // ── State ──
 let DB = [];
-let PARTY_BOOK = {}; // { PARTY_NAME: { ka: [...], addr: [...] } }
-let DONE_SET = new Set(); // vchNo strings that have been generated
-
+let PARTY_BOOK = {};
+let DONE_SET = new Set();
 let searchResults = [];
 let currentSearchParty = null;
 let currentModalParty = null;
 let modalKATemp = [];
 let modalAddrTemp = [];
+
+// ── NEW: Keyboard navigation state for party suggestions ──
+let suggestionList = [];      // array of party name strings currently shown
+let suggestionHighlight = -1; // index of currently highlighted suggestion (-1 = none)
 
 // ── Sync Status ──
 function setSyncStatus(state) {
@@ -671,7 +725,6 @@ function setSyncStatus(state) {
   lbl.style.color = s.color;
 }
 
-// ── Firebase Realtime Database helpers ──
 async function rtdbSet(path, data) {
   setSyncStatus('saving');
   try {
@@ -689,14 +742,11 @@ async function rtdbGet(path) {
   return snapshot.exists() ? snapshot.val() : null;
 }
 
-// ── Persist / Load (Firebase Realtime Database) ──
 async function saveDB() {
   await rtdbSet('sf_data/invoice_db', { records: DB, _updated: new Date().toISOString() });
 }
 
 async function savePB() {
-  // Stringify the data to prevent Firebase from dropping empty arrays
-  // and to allow Tally party names with periods (e.g., "PVT. LTD.")
   const payload = JSON.stringify(PARTY_BOOK);
   await rtdbSet('sf_data/party_book', { data: payload, _updated: new Date().toISOString() });
 }
@@ -707,7 +757,6 @@ async function saveDone() {
 
 async function loadAll() {
   setSyncStatus('connecting');
-  // Wait for Firebase module to finish loading
   if (!window._firebaseReady) {
     await new Promise(resolve => document.addEventListener('firebase-ready', resolve, { once: true }));
   }
@@ -719,14 +768,12 @@ async function loadAll() {
     DB       = dbData   ? (dbData.records   || []) : [];
     DONE_SET = new Set(doneData ? (doneData.vchNos || []) : []);
 
-    // Safely parse the stringified Party Book, with fallback for old un-stringified data
     if (pbData && typeof pbData.data === 'string') {
       try { PARTY_BOOK = JSON.parse(pbData.data); } catch(e) { PARTY_BOOK = {}; }
     } else {
       PARTY_BOOK = pbData ? (pbData.data || {}) : {};
     }
 
-    // Restore missing arrays dropped by older Firebase saves
     Object.keys(PARTY_BOOK).forEach(p => {
       if (!PARTY_BOOK[p].ka) PARTY_BOOK[p].ka = [];
       if (!PARTY_BOOK[p].addr) PARTY_BOOK[p].addr = [];
@@ -752,7 +799,6 @@ async function loadAll() {
   }
 }
 
-// ── Backup download (optional, keeps a local copy) ──
 function saveDataFile() {
   const payload = {
     _version: 1,
@@ -770,7 +816,6 @@ function saveDataFile() {
   log('✅ Backup file downloaded.', 'ok');
 }
 
-// ── Navigation ──
 function showPage(name, btn) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -780,7 +825,6 @@ function showPage(name, btn) {
   if (name === 'partybook') renderPartyBook();
 }
 
-// ── Upload ──
 const dropZone = document.getElementById('drop-zone');
 dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
@@ -841,23 +885,14 @@ function handleFile(file) {
         if (!party || !vchNo || party === 'Particulars' || vchNo === 'Vch No.' || party.toLowerCase().startsWith('total')) { badRows++; continue; }
 
         let dateStr = '';
-        
         if (typeof dateRaw === 'string' && dateRaw.trim().length >= 8) {
-        
-          // Tally format: DD/MM/YYYY
           const parts = dateRaw.trim().split('/');
-        
           if (parts.length === 3) {
             dateStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
           }
-        
         } else if (typeof dateRaw === 'number' && dateRaw > 40000) {
-        
-          // Excel serial fallback
           const d = new Date(Math.round((dateRaw - 25569) * 86400) * 1000);
-        
-          dateStr =
-            `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+          dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
         }
 
         if (!dateStr || dateStr < '2000-01-01') { badRows++; continue; }
@@ -894,9 +929,7 @@ function updateStats() {
   document.getElementById('total-count').textContent = total;
 }
 
-function exportData() {
-  saveDataFile();
-}
+function exportData() { saveDataFile(); }
 
 async function clearAllData() {
   if (!confirm('Clear ALL stored records from Firebase? This cannot be undone.')) return;
@@ -907,13 +940,10 @@ async function clearAllData() {
   log('All data cleared from Firebase.', 'warn');
 }
 
-// ── SUBJECT LINE LOGIC ──
-// If vchNo contains "I" → Import, "E" → Export, both → Import & Export, neither → Misc
 function getSubjectFromRows(rows) {
   let hasI = false, hasE = false;
   rows.forEach(r => {
     const no = r.vchNo.toUpperCase();
-    // Look for standalone I or E in the voucher number (typical pattern like SFIG-001 / SFEG-001)
     if (/I/.test(no)) hasI = true;
     if (/E/.test(no)) hasE = true;
   });
@@ -923,11 +953,10 @@ function getSubjectFromRows(rows) {
   return 'MISC INVOICE';
 }
 
-// ── Day View (Pending Invoices) ──
+// ── Day View ──
 function initDayView() {
   const dateInput = document.getElementById('day-date');
   if (!dateInput.value) {
-    // Default to earliest date with pending invoices
     const pendingDates = [...new Set(DB.filter(r => !DONE_SET.has(r.vchNo)).map(r=>r.date))].sort();
     dateInput.value = pendingDates[0] || DB.map(r=>r.date).sort().pop() || new Date().toISOString().slice(0,10);
   }
@@ -984,7 +1013,6 @@ function renderDayView() {
     });
     html += `</tbody></table></div></div>`;
   });
-
   content.innerHTML = html;
 }
 
@@ -1009,30 +1037,92 @@ function nextDate() {
 }
 
 // ── Cover Letter Search ──
+
+// ── NEW: Render suggestions with keyboard highlight support ──
+function renderSuggestions(parties) {
+  const box = document.getElementById('suggestions');
+  suggestionList = parties;
+  suggestionHighlight = -1;
+  if (!parties.length) { box.style.display = 'none'; return; }
+  box.innerHTML = parties.map((p, i) =>
+    `<div class="suggestion-item" data-idx="${i}"
+      onmousedown="selectSuggestion('${p.replace(/'/g,"\\'")}')"
+      onmouseover="highlightSuggestion(${i})"
+    >${p}</div>`
+  ).join('');
+  box.style.display = 'block';
+}
+
+function highlightSuggestion(idx) {
+  suggestionHighlight = idx;
+  document.querySelectorAll('#suggestions .suggestion-item').forEach((el, i) => {
+    el.classList.toggle('highlighted', i === idx);
+  });
+  // Scroll into view
+  const highlighted = document.querySelector('#suggestions .suggestion-item.highlighted');
+  if (highlighted) highlighted.scrollIntoView({ block: 'nearest' });
+}
+
 function onPartyInput() {
   const val = document.getElementById('search-party').value.trim().toUpperCase();
-  const box = document.getElementById('suggestions');
-  if (val.length < 2) { box.style.display = 'none'; return; }
+  if (val.length < 2) {
+    document.getElementById('suggestions').style.display = 'none';
+    suggestionList = [];
+    suggestionHighlight = -1;
+    return;
+  }
   const parties = [...new Set(DB.map(r => r.party))].filter(p => p.toUpperCase().includes(val)).slice(0, 8);
-  if (!parties.length) { box.style.display = 'none'; return; }
-  box.innerHTML = parties.map(p => `<div class="suggestion-item" onmousedown="selectSuggestion('${p.replace(/'/g,"\\'")}')">${p}</div>`).join('');
-  box.style.display = 'block';
+  renderSuggestions(parties);
+}
+
+// ── NEW: Keyboard navigation for party suggestions ──
+function onPartyKeyDown(e) {
+  const box = document.getElementById('suggestions');
+  const isOpen = box.style.display !== 'none' && suggestionList.length > 0;
+
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (!isOpen) return;
+    const next = (suggestionHighlight + 1) % suggestionList.length;
+    highlightSuggestion(next);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (!isOpen) return;
+    const prev = suggestionHighlight <= 0 ? suggestionList.length - 1 : suggestionHighlight - 1;
+    highlightSuggestion(prev);
+  } else if (e.key === 'Enter' || e.key === 'Tab') {
+    if (isOpen && suggestionHighlight >= 0) {
+      e.preventDefault();
+      selectSuggestion(suggestionList[suggestionHighlight]);
+    }
+    // If Tab with no highlight, let normal tab behaviour happen
+  } else if (e.key === 'Escape') {
+    box.style.display = 'none';
+    suggestionList = [];
+    suggestionHighlight = -1;
+  }
 }
 
 function selectSuggestion(p) {
   document.getElementById('search-party').value = p;
   document.getElementById('suggestions').style.display = 'none';
-  // Auto-fill K/A if only one
+  suggestionList = [];
+  suggestionHighlight = -1;
   loadPartyKAAndAddr(p);
 }
 
-function hideSuggestions() { setTimeout(() => { document.getElementById('suggestions').style.display = 'none'; }, 200); }
+function hideSuggestions() {
+  setTimeout(() => {
+    document.getElementById('suggestions').style.display = 'none';
+    suggestionList = [];
+    suggestionHighlight = -1;
+  }, 200);
+}
 
 function loadPartyKAAndAddr(party) {
   const pb = PARTY_BOOK[party] || { ka: [], addr: [] };
-  const ka = pb.ka || []; // Fallback 
+  const ka = pb.ka || [];
   const attnInput = document.getElementById('cl-attn');
-  
   if (ka.length === 1) {
     attnInput.value = ka[0];
   } else {
@@ -1041,9 +1131,34 @@ function loadPartyKAAndAddr(party) {
   renderAddrPills(party);
 }
 
+// ── NEW: updateAddrPreview — shows full address text below the select ──
+function updateAddrPreview() {
+  const party = currentSearchParty || document.getElementById('search-party').value.trim();
+  const pb = PARTY_BOOK[party] || { ka: [], addr: [] };
+  const addr = pb.addr || [];
+  const addrSel = document.getElementById('addr-select');
+  const previewBox = document.getElementById('addr-preview-box');
+  const previewText = document.getElementById('addr-preview-text');
+
+  const selVal = addrSel.value;
+  if (selVal === '' || selVal === null || selVal === undefined || !addr.length) {
+    previewBox.classList.remove('visible');
+    previewText.textContent = '';
+    return;
+  }
+  const addrText = addr[parseInt(selVal, 10)];
+  if (!addrText) {
+    previewBox.classList.remove('visible');
+    previewText.textContent = '';
+    return;
+  }
+  previewText.textContent = addrText;
+  previewBox.classList.add('visible');
+}
+
 function renderAddrPills(party) {
   const pb = PARTY_BOOK[party] || { ka: [], addr: [] };
-  const addr = pb.addr || []; // Fallback to prevent .forEach crash
+  const addr = pb.addr || [];
   const pillRow = document.getElementById('addr-pills');
   const addrSel = document.getElementById('addr-select');
 
@@ -1055,16 +1170,29 @@ function renderAddrPills(party) {
     addrSel.appendChild(opt);
   });
 
+  // Auto-select first address if only one
+  if (addr.length === 1) {
+    addrSel.value = '0';
+  }
+
   pillRow.innerHTML = '';
   if (addr.length > 1) {
     addr.forEach((a, i) => {
       const pill = document.createElement('span');
       pill.className = 'pill';
       pill.textContent = `Addr ${i+1}`;
-      pill.onclick = () => { addrSel.value = i; };
+      pill.onclick = () => {
+        addrSel.value = i;
+        // Highlight active pill
+        document.querySelectorAll('#addr-pills .pill').forEach((p, pi) => p.classList.toggle('active', pi === i));
+        updateAddrPreview();
+      };
       pillRow.appendChild(pill);
     });
   }
+
+  // Update preview after rendering
+  updateAddrPreview();
 }
 
 // K/A autocomplete
@@ -1099,9 +1227,7 @@ function doSearch() {
 
   if (!searchResults.length) { alert('No invoices found for this party / date range.'); return; }
 
-  // Use the exact party name from the DB record (not what user typed)
   currentSearchParty = searchResults[0].party;
-
   renderSearchResults();
   loadPartyKAAndAddr(currentSearchParty);
   document.getElementById('step2-block').style.display = 'block';
@@ -1119,6 +1245,9 @@ function resetAll() {
   document.getElementById('step2-block').style.display = 'none';
   document.getElementById('step3-block').style.display = 'none';
   document.getElementById('cl-attn').value = '';
+  // Clear preview
+  document.getElementById('addr-preview-box').classList.remove('visible');
+  document.getElementById('addr-preview-text').textContent = '';
 }
 
 function renderSearchResults() {
@@ -1139,7 +1268,6 @@ function renderSearchResults() {
       ? '<span class="tag tag-a">GIA</span>'
       : '<span class="tag tag-r">GIR</span>';
     const done = DONE_SET.has(r.vchNo);
-    // Pre-uncheck done invoices
     html += `<tr class="${done ? 'done-row' : ''}">
       <td class="check-col"><input type="checkbox" class="res-chk" data-idx="${i}" ${done ? '' : 'checked'} onchange="updateBadge()"></td>
       <td class="mono" style="color:var(--muted)">${i+1}</td>
@@ -1177,7 +1305,6 @@ function generatePDF() {
   const attn = document.getElementById('cl-attn').value.trim();
   const party = currentSearchParty || document.getElementById('search-party').value.trim();
 
-  // Save the K/A name if new
   if (attn && party) {
     if (!PARTY_BOOK[party]) PARTY_BOOK[party] = { ka: [], addr: [] };
     if (!PARTY_BOOK[party].ka) PARTY_BOOK[party].ka = [];
@@ -1296,52 +1423,46 @@ function generatePDF() {
   doc.setFont('times','normal');
   doc.text('Checked by', lm, y);
 
-  // ── Mark selected invoices as done ──
   selectedRows.forEach(r => DONE_SET.add(r.vchNo));
   saveDone();
   updateStats();
-// ── Save PDF ──
+
   const pdfBlob = doc.output('blob');
   const blobUrl = URL.createObjectURL(pdfBlob);
 
-  // 1. Download File directly
   const a = document.createElement('a');
   a.href = blobUrl;
   a.download = fileName;
-  document.body.appendChild(a); // Appending makes it more reliable in Firefox
+  document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
 
-  // 2. Trigger printer via hidden iframe
   try {
     const frame = document.getElementById('print-frame');
     frame.src = blobUrl;
     frame.onload = function() {
-          try {
-            frame.contentWindow.focus();
-            frame.contentWindow.print();
-          } catch (err) {
-            console.warn('Silent iframe print blocked by browser.', err);
-          }
-          setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
-        };
-      } catch(e) {
-        console.error('Iframe rendering failed', e);
-        // Removed: window.open(blobUrl, '_blank');
+      try {
+        frame.contentWindow.focus();
+        frame.contentWindow.print();
+      } catch (err) {
+        console.warn('Silent iframe print blocked by browser.', err);
       }
-  // Refresh search results to reflect done status
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
+    };
+  } catch(e) {
+    console.error('Iframe rendering failed', e);
+  }
+
   setTimeout(() => renderSearchResults(), 300);
 }
 
-// ── Print Address (Envelope C5 landscape) ──
+// ── Print Address ──
 function printAddress() {
   const party = currentSearchParty || document.getElementById('search-party').value.trim();
-
   if (!party) { alert('Please search for a party first.'); return; }
 
   const pb = PARTY_BOOK[party] || { ka: [], addr: [] };
   const addr = pb.addr || [];
-
   if (!addr.length) {
     alert('No address saved for this party.\n\nClick "Manage K/A & Addresses" button to add addresses first.');
     return;
@@ -1349,18 +1470,16 @@ function printAddress() {
 
   const addrSel = document.getElementById('addr-select');
   const selVal = addrSel.value;
-  // selVal is "" (no selection) or "0", "1", "2"...
   let addrText;
   if (selVal === '' || selVal === null || selVal === undefined) {
-    addrText = addr[0]; // default to first
+    addrText = addr[0];
   } else {
     addrText = addr[parseInt(selVal, 10)];
   }
   if (!addrText) { addrText = addr[0]; }
   if (!addrText) { alert('Please select a valid address.'); return; }
 
-  // C5 envelope: 229mm × 162mm, landscape = 229w × 162h
-const envelopeHTML = `<!DOCTYPE html>
+  const envelopeHTML = `<!DOCTYPE html>
 <html><head>
 <meta charset="UTF-8">
 <title>Envelope - ${party}</title>
@@ -1397,12 +1516,12 @@ const envelopeHTML = `<!DOCTYPE html>
     setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
   };
 }
+
 // ── Party Book Page ──
 function renderPartyBook() {
   const search = document.getElementById('pb-search').value.trim().toUpperCase();
   const container = document.getElementById('party-book-list');
 
-  // Get all parties known (from DB + from party book)
   const allParties = new Set([...DB.map(r => r.party), ...Object.keys(PARTY_BOOK)]);
   const parties = [...allParties].filter(p => !search || p.toUpperCase().includes(search)).sort();
 
@@ -1414,8 +1533,8 @@ function renderPartyBook() {
   let html = '<div class="tbl-wrap"><table><thead><tr><th>Party Name</th><th>K/A Names</th><th>Addresses</th><th></th></tr></thead><tbody>';
   parties.forEach(p => {
     const pb = PARTY_BOOK[p] || { ka: [], addr: [] };
-    const ka = pb.ka || []; // Fallback
-    const addr = pb.addr || []; // Fallback
+    const ka = pb.ka || [];
+    const addr = pb.addr || [];
     const kaStr = ka.length ? ka.join(', ') : '<span style="color:var(--muted)">—</span>';
     const addrStr = addr.length ? `${addr.length} address${addr.length>1?'es':''}` : '<span style="color:var(--muted)">—</span>';
     html += `<tr>
@@ -1429,7 +1548,7 @@ function renderPartyBook() {
   container.innerHTML = html;
 }
 
-// ── Modal for party K/A & address ──
+// ── Modal ──
 function openModal(party) {
   currentModalParty = party;
   const pb = PARTY_BOOK[party] || { ka: [], addr: [] };
@@ -1520,13 +1639,13 @@ function saveModal() {
   closeModalDirect();
   renderPartyBook();
 }
+
 function closeModal(e) { if (e.target === document.getElementById('modal-overlay')) closeModalDirect(); }
 function closeModalDirect() {
   document.getElementById('modal-overlay').classList.add('hidden');
   currentModalParty = null;
 }
 
-// Enter key to add K/A
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && document.getElementById('modal-ka-input') === document.activeElement) addKA();
 });
@@ -1552,7 +1671,6 @@ function numberToWords(num) {
     if (n < 100) return tens[Math.floor(n/10)] + (n%10 ? ' '+ones[n%10] : '');
     if (n < 1000) return ones[Math.floor(n/100)] + ' Hundred' + (n%100 ? ' '+convert(n%100) : '');
     if (n < 100000) return convert(Math.floor(n/1000)) + ' Thousand' + (n%1000 ? ' '+convert(n%1000) : '');
-    // ADDED A ZERO HERE: n < 10000000 to safely process up to 99,99,999 (99 Lakhs)
     if (n < 10000000) return convert(Math.floor(n/100000)) + ' Lakh' + (n%100000 ? ' '+convert(n%100000) : '');
     return convert(Math.floor(n/10000000)) + ' Crore' + (n%10000000 ? ' '+convert(n%10000000) : '');
   }
