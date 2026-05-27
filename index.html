@@ -901,7 +901,17 @@ function handleFile(file) {
         const dateRaw = row[dateIdx];
         const party   = String(row[partIdx] || '').trim();
         const vchType = String(row[typeIdx] || '').trim();
-        const vchNo   = String(row[noIdx]   || '').trim();
+        let vchNo = row[noIdx];
+        
+        // Handle Excel values safely
+        if (vchNo === null || vchNo === undefined) {
+          vchNo = '';
+        } else {
+          vchNo = String(vchNo).trim();
+        }
+        
+        // Remove invisible characters
+        vchNo = vchNo.replace(/[\u200B-\u200D\uFEFF]/g, '');
         let gross = parseFloat(row[amtIdx]) || 0;
         if (!gross) gross = parseFloat(row[amtIdx + 1]) || 0;
 
