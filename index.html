@@ -450,26 +450,29 @@
   /* ── NEW: Address Preview Box ── */
 /* ── Address Preview Box ── */
 /* ── Address Preview Box ── */
-  .addr-preview-box {
+.addr-preview-box {
     margin-left: 10px;
     background: #141a17;
     border: 1px solid #2a3d32;
     border-left: 3px solid var(--accent2);
     border-radius: 3px;
-    padding: 6px 8px;
+    padding: 10px 12px;
     font-family: var(--mono);
-    font-size: 11px;
-    line-height: 1.5;
+    font-size: 12px;
+    line-height: 1.6;
     color: var(--text);
     white-space: pre-wrap;
-    width: 220px;
-    max-height: 90px;
+
+    width: 420px;      /* was 220px */
+    min-height: 180px; /* new */
+    max-height: 220px; /* was 90px */
+
     overflow-y: auto;
     flex-shrink: 0;
     align-self: flex-start;
     transition: border-color 0.2s;
     display: none;
-  }
+}
   .addr-preview-box.visible { display: block; }
   .addr-preview-label {
     font-family: var(--mono);
