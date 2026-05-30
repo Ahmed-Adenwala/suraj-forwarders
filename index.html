@@ -623,7 +623,7 @@
     <div style="display:flex; align-items:flex-start; gap:20px;">
 
       <!-- LEFT: fields + buttons, fixed narrow width -->
-      <div style="display:flex; flex-direction:column; gap:14px; width:520px; flex-shrink:0;">
+      <div style="display:flex; flex-direction:column; gap:14px; width:480px; flex-shrink:0;">
 
         <!-- Row: K/A + Address dropdown side by side -->
         <div style="display:flex; gap:14px; align-items:flex-end;">
@@ -647,17 +647,17 @@
 
         </div>
 
-        <!-- Buttons immediately below the fields -->
-        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-          <button class="btn btn-accent" style="padding:11px 26px; font-size:14px;" onclick="generatePDF()">🖨 Generate Cover Letter PDF</button>
-          <button class="btn btn-purple" style="padding:11px 18px; font-size:14px;" onclick="printAddress()">📬 Print Address (Envelope)</button>
-          <button class="btn btn-ghost" style="padding:11px 16px; font-size:13px;" onclick="openPartyBook()">⚙ Manage K/A &amp; Addresses</button>
+        <!-- Buttons immediately below the fields — all on one row, equal spacing -->
+        <div style="display:flex; gap:10px; align-items:center;">
+          <button class="btn btn-accent"  style="flex:1; padding:11px 0; font-size:13px; text-align:center;" onclick="generatePDF()">🖨 Generate Cover Letter PDF</button>
+          <button class="btn btn-purple"  style="flex:1; padding:11px 0; font-size:13px; text-align:center;" onclick="printAddress()">📬 Print Address (Envelope)</button>
+          <button class="btn btn-ghost"   style="flex:1; padding:11px 0; font-size:13px; text-align:center;" onclick="openPartyBook()">⚙ Manage K/A &amp; Addresses</button>
         </div>
 
       </div>
 
-      <!-- RIGHT: address preview, independently positioned, never pushes buttons -->
-      <div class="addr-preview-box" id="addr-preview-box" style="flex:1; min-width:220px; max-width:380px; margin-top:0; margin-left:20px;">
+      <!-- RIGHT: address preview stretches into remaining space -->
+      <div class="addr-preview-box" id="addr-preview-box" style="flex:1; margin-top:0; margin-left:28px; max-width:none;">
         <div id="addr-preview-text"></div>
       </div>
 
