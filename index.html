@@ -260,7 +260,6 @@
     transition: background 0.15s;
   }
   .suggestion-item:hover { background: #2a2a2a; color: var(--accent); }
-  /* ── NEW: keyboard highlight style ── */
   .suggestion-item.highlighted {
     background: #2e2518;
     color: var(--accent);
@@ -447,11 +446,8 @@
   .done-row td { opacity: 0.4; }
   .done-badge { font-family: var(--mono); font-size: 10px; color: #7070b0; background: #1a1a2e; padding: 2px 7px; border-radius: 2px; }
 
-  /* ── NEW: Address Preview Box ── */
-/* ── Address Preview Box ── */
-/* ── Address Preview Box ── */
-.addr-preview-box {
-    margin-left: 10px;
+  /* ── Address Preview Box — stacked below dropdown ── */
+  .addr-preview-box {
     background: #141a17;
     border: 1px solid #2a3d32;
     border-left: 3px solid var(--accent2);
@@ -462,33 +458,14 @@
     line-height: 1.6;
     color: var(--text);
     white-space: pre-wrap;
-
-    width: 420px;      /* was 220px */
-    min-height: 180px; /* new */
-    max-height: 220px; /* was 90px */
-
+    width: 100%;
+    max-height: 160px;
     overflow-y: auto;
-    flex-shrink: 0;
-    align-self: flex-start;
+    margin-top: 8px;
     transition: border-color 0.2s;
     display: none;
-}
+  }
   .addr-preview-box.visible { display: block; }
-  .addr-preview-label {
-    font-family: var(--mono);
-    font-size: 9px;
-    color: var(--accent2);
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    margin-bottom: 4px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-  .addr-preview-label::before {
-    content: '📬';
-    font-size: 10px;
-  }
 
   @media print {
     body > *:not(#addr-print-area) { display: none !important; }
@@ -631,40 +608,44 @@
     <div id="search-results"></div>
   </div>
 
-  <!-- STEP 3 -->
+  <!-- STEP 3 — FIXED LAYOUT -->
   <div class="step-block" id="step3-block" style="display:none;">
     <div class="step-label"><span class="step-num">3</span> Kind Attention &amp; Print PDF</div>
-    <div>
-<div style="display:flex; align-items:flex-start; gap:16px; flex-wrap:wrap;">
-        <div class="field-group relative" style="flex:1; min-width:240px;">
-          <label>Kind Attention (Contact Name)</label>
-          <input type="text" id="cl-attn" placeholder="e.g. MR. Priyank Shah" style="width:100%;" oninput="onAttnInput()" onblur="hideAttnSuggestions()" autocomplete="off">
-          <div class="suggestions" id="attn-suggestions" style="display:none; width:100%;"></div>
-        </div>
 
-        <!-- ── Address field + preview side by side ── -->
-        <div class="field-group" style="flex:1; min-width:240px;">
-          <label>Party Address (for envelope)</label>
-          <div class="pill-row" id="addr-pills"></div>
-          <div style="display:flex; align-items:flex-start;">
-            <select id="addr-select" style="flex:1; font-size:12px;" onchange="updateAddrPreview()">
-              <option value="">— select address —</option>
-            </select>
-            <!-- Preview sits to the right of the dropdown -->
-            <div class="addr-preview-box" id="addr-preview-box">
-              <div id="addr-preview-text"></div>
-            </div>
-          </div>
+    <!-- Two-column row: K/A field | Address field (both same height) -->
+    <div style="display:flex; align-items:flex-start; gap:16px; flex-wrap:wrap;">
+
+      <!-- Left: Kind Attention -->
+      <div class="field-group relative" style="flex:1; min-width:240px;">
+        <label>Kind Attention (Contact Name)</label>
+        <input type="text" id="cl-attn" placeholder="e.g. MR. Priyank Shah" style="width:100%;"
+          oninput="onAttnInput()" onblur="hideAttnSuggestions()" autocomplete="off">
+        <div class="suggestions" id="attn-suggestions" style="display:none; width:100%;"></div>
+      </div>
+
+      <!-- Right: Address dropdown + preview stacked vertically -->
+      <div class="field-group" style="flex:1; min-width:240px;">
+        <label>Party Address (for envelope)</label>
+        <div class="pill-row" id="addr-pills"></div>
+        <select id="addr-select" style="width:100%; font-size:12px;" onchange="updateAddrPreview()">
+          <option value="">— select address —</option>
+        </select>
+        <!-- Preview is stacked BELOW the dropdown, full width, no side overflow -->
+        <div class="addr-preview-box" id="addr-preview-box">
+          <div id="addr-preview-text"></div>
         </div>
       </div>
 
-      <div style="display:flex; gap:12px; margin-top:18px; flex-wrap:wrap;">
-        <button class="btn btn-accent" style="padding:10px 28px; font-size:14px;" onclick="generatePDF()">🖨 Generate Cover Letter PDF</button>
-        <button class="btn btn-purple" style="padding:10px 20px;" onclick="printAddress()">📬 Print Address (Envelope)</button>
-        <button class="btn btn-ghost btn-sm" onclick="openPartyBook()">⚙ Manage K/A &amp; Addresses</button>
-      </div>
-      <div id="selected-summary" style="margin-top:16px;"></div>
     </div>
+
+    <!-- Buttons row — always sits below both fields, never pushed sideways -->
+    <div style="display:flex; gap:12px; margin-top:20px; flex-wrap:wrap; align-items:center;">
+      <button class="btn btn-accent" style="padding:10px 28px; font-size:14px;" onclick="generatePDF()">🖨 Generate Cover Letter PDF</button>
+      <button class="btn btn-purple" style="padding:10px 20px;" onclick="printAddress()">📬 Print Address (Envelope)</button>
+      <button class="btn btn-ghost btn-sm" onclick="openPartyBook()">⚙ Manage K/A &amp; Addresses</button>
+    </div>
+
+    <div id="selected-summary" style="margin-top:16px;"></div>
   </div>
 
 </div>
@@ -729,9 +710,9 @@ let currentModalParty = null;
 let modalKATemp = [];
 let modalAddrTemp = [];
 
-// ── NEW: Keyboard navigation state for party suggestions ──
-let suggestionList = [];      // array of party name strings currently shown
-let suggestionHighlight = -1; // index of currently highlighted suggestion (-1 = none)
+// ── Keyboard navigation state for party suggestions ──
+let suggestionList = [];
+let suggestionHighlight = -1;
 
 // ── Sync Status ──
 function setSyncStatus(state) {
@@ -905,15 +886,7 @@ function handleFile(file) {
         const party   = String(row[partIdx] || '').trim();
         const vchType = String(row[typeIdx] || '').trim();
         let vchNo = row[noIdx];
-        
-        // Handle Excel values safely
-        if (vchNo === null || vchNo === undefined) {
-          vchNo = '';
-        } else {
-          vchNo = String(vchNo).trim();
-        }
-        
-        // Remove invisible characters
+        if (vchNo === null || vchNo === undefined) { vchNo = ''; } else { vchNo = String(vchNo).trim(); }
         vchNo = vchNo.replace(/[\u200B-\u200D\uFEFF]/g, '');
         let gross = parseFloat(row[amtIdx]) || 0;
         if (!gross) gross = parseFloat(row[amtIdx + 1]) || 0;
@@ -923,9 +896,7 @@ function handleFile(file) {
         let dateStr = '';
         if (typeof dateRaw === 'string' && dateRaw.trim().length >= 8) {
           const parts = dateRaw.trim().split('/');
-          if (parts.length === 3) {
-            dateStr = `${parts[2]}-${parts[1]}-${parts[0]}`;
-          }
+          if (parts.length === 3) { dateStr = `${parts[2]}-${parts[1]}-${parts[0]}`; }
         } else if (typeof dateRaw === 'number' && dateRaw > 40000) {
           const d = new Date(Math.round((dateRaw - 25569) * 86400) * 1000);
           dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
@@ -1073,8 +1044,6 @@ function nextDate() {
 }
 
 // ── Cover Letter Search ──
-
-// ── NEW: Render suggestions with keyboard highlight support ──
 function renderSuggestions(parties) {
   const box = document.getElementById('suggestions');
   suggestionList = parties;
@@ -1094,7 +1063,6 @@ function highlightSuggestion(idx) {
   document.querySelectorAll('#suggestions .suggestion-item').forEach((el, i) => {
     el.classList.toggle('highlighted', i === idx);
   });
-  // Scroll into view
   const highlighted = document.querySelector('#suggestions .suggestion-item.highlighted');
   if (highlighted) highlighted.scrollIntoView({ block: 'nearest' });
 }
@@ -1111,7 +1079,6 @@ function onPartyInput() {
   renderSuggestions(parties);
 }
 
-// ── Keyboard navigation for party suggestions ──
 function onPartyKeyDown(e) {
   const box = document.getElementById('suggestions');
   const isOpen = box.style.display !== 'none' && suggestionList.length > 0;
@@ -1119,55 +1086,24 @@ function onPartyKeyDown(e) {
   if (e.key === 'ArrowDown') {
     e.preventDefault();
     if (!isOpen) return;
-    const next = (suggestionHighlight + 1) % suggestionList.length;
-    highlightSuggestion(next);
-
+    highlightSuggestion((suggestionHighlight + 1) % suggestionList.length);
   } else if (e.key === 'ArrowUp') {
     e.preventDefault();
     if (!isOpen) return;
-    const prev = suggestionHighlight <= 0 ? suggestionList.length - 1 : suggestionHighlight - 1;
-    highlightSuggestion(prev);
-
+    highlightSuggestion(suggestionHighlight <= 0 ? suggestionList.length - 1 : suggestionHighlight - 1);
   } else if (e.key === 'Tab') {
     if (isOpen) {
       e.preventDefault();
-      // If exactly one suggestion exists, always select it.
-      // If multiple and one is highlighted, select it.
-      if (suggestionList.length === 1) {
-        selectSuggestion(suggestionList[0]);
-      } else if (suggestionHighlight >= 0) {
-        selectSuggestion(suggestionList[suggestionHighlight]);
-      }
-      // If multiple and nothing highlighted: close and let Tab move focus normally
-      else {
-        box.style.display = 'none';
-        suggestionList = [];
-        suggestionHighlight = -1;
-      }
+      if (suggestionList.length === 1) { selectSuggestion(suggestionList[0]); }
+      else if (suggestionHighlight >= 0) { selectSuggestion(suggestionList[suggestionHighlight]); }
+      else { box.style.display = 'none'; suggestionList = []; suggestionHighlight = -1; }
     }
-
   } else if (e.key === 'Enter') {
-    if (isOpen && suggestionHighlight >= 0) {
-      // A suggestion is highlighted → select it, don't search yet
-      e.preventDefault();
-      selectSuggestion(suggestionList[suggestionHighlight]);
-    } else if (isOpen && suggestionList.length === 1) {
-      // Only one suggestion → select it, don't search yet
-      e.preventDefault();
-      selectSuggestion(suggestionList[0]);
-    } else {
-      // Dropdown closed or nothing to pick → fire Search
-      e.preventDefault();
-      box.style.display = 'none';
-      suggestionList = [];
-      suggestionHighlight = -1;
-      doSearch();
-    }
-
+    if (isOpen && suggestionHighlight >= 0) { e.preventDefault(); selectSuggestion(suggestionList[suggestionHighlight]); }
+    else if (isOpen && suggestionList.length === 1) { e.preventDefault(); selectSuggestion(suggestionList[0]); }
+    else { e.preventDefault(); box.style.display = 'none'; suggestionList = []; suggestionHighlight = -1; doSearch(); }
   } else if (e.key === 'Escape') {
-    box.style.display = 'none';
-    suggestionList = [];
-    suggestionHighlight = -1;
+    box.style.display = 'none'; suggestionList = []; suggestionHighlight = -1;
   }
 }
 
@@ -1191,14 +1127,9 @@ function loadPartyKAAndAddr(party) {
   const pb = PARTY_BOOK[party] || { ka: [], addr: [], notes: '' };
   const ka = pb.ka || [];
   const attnInput = document.getElementById('cl-attn');
-  if (ka.length === 1) {
-    attnInput.value = ka[0];
-  } else {
-    attnInput.value = '';
-  }
+  if (ka.length === 1) { attnInput.value = ka[0]; } else { attnInput.value = ''; }
   renderAddrPills(party);
 
-  // Show notes banner if notes exist
   const banner = document.getElementById('party-notes-banner');
   const notesText = document.getElementById('party-notes-text');
   const notes = pb.notes || '';
@@ -1211,7 +1142,6 @@ function loadPartyKAAndAddr(party) {
   }
 }
 
-// ── NEW: updateAddrPreview — shows full address text below the select ──
 function updateAddrPreview() {
   const party = currentSearchParty || document.getElementById('search-party').value.trim();
   const pb = PARTY_BOOK[party] || { ka: [], addr: [] };
@@ -1232,9 +1162,8 @@ function updateAddrPreview() {
     previewText.textContent = '';
     return;
   }
-previewText.textContent = addrText;
+  previewText.textContent = addrText;
   previewBox.classList.add('visible');
-  setTimeout(() => { previewBox.scrollTop = previewBox.scrollHeight; }, 10);
 }
 
 function renderAddrPills(party) {
@@ -1251,10 +1180,7 @@ function renderAddrPills(party) {
     addrSel.appendChild(opt);
   });
 
-  // Auto-select first address if only one
-  if (addr.length === 1) {
-    addrSel.value = '0';
-  }
+  if (addr.length === 1) { addrSel.value = '0'; }
 
   pillRow.innerHTML = '';
   if (addr.length > 1) {
@@ -1264,7 +1190,6 @@ function renderAddrPills(party) {
       pill.textContent = `Addr ${i+1}`;
       pill.onclick = () => {
         addrSel.value = i;
-        // Highlight active pill
         document.querySelectorAll('#addr-pills .pill').forEach((p, pi) => p.classList.toggle('active', pi === i));
         updateAddrPreview();
       };
@@ -1272,11 +1197,9 @@ function renderAddrPills(party) {
     });
   }
 
-  // Update preview after rendering
   updateAddrPreview();
 }
 
-// K/A autocomplete
 function onAttnInput() {
   const val = document.getElementById('cl-attn').value.trim();
   const party = currentSearchParty || document.getElementById('search-party').value.trim();
@@ -1523,17 +1446,10 @@ function generatePDF() {
     const frame = document.getElementById('print-frame');
     frame.src = blobUrl;
     frame.onload = function() {
-      try {
-        frame.contentWindow.focus();
-        frame.contentWindow.print();
-      } catch (err) {
-        console.warn('Silent iframe print blocked by browser.', err);
-      }
+      try { frame.contentWindow.focus(); frame.contentWindow.print(); } catch (err) { console.warn('Silent iframe print blocked.', err); }
       setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
     };
-  } catch(e) {
-    console.error('Iframe rendering failed', e);
-  }
+  } catch(e) { console.error('Iframe rendering failed', e); }
 
   setTimeout(() => renderSearchResults(), 300);
 }
@@ -1552,13 +1468,8 @@ function printAddress() {
 
   const addrSel = document.getElementById('addr-select');
   const selVal = addrSel.value;
-  let addrText;
-  if (selVal === '' || selVal === null || selVal === undefined) {
-    addrText = addr[0];
-  } else {
-    addrText = addr[parseInt(selVal, 10)];
-  }
-  if (!addrText) { addrText = addr[0]; }
+  let addrText = (selVal === '' || selVal === null || selVal === undefined) ? addr[0] : addr[parseInt(selVal, 10)];
+  if (!addrText) addrText = addr[0];
   if (!addrText) { alert('Please select a valid address.'); return; }
 
   const envelopeHTML = `<!DOCTYPE html>
@@ -1589,12 +1500,7 @@ function printAddress() {
   const frame = document.getElementById('print-frame');
   frame.src = blobUrl;
   frame.onload = function() {
-    try {
-      frame.contentWindow.focus();
-      frame.contentWindow.print();
-    } catch(err) {
-      console.warn('Envelope print blocked.', err);
-    }
+    try { frame.contentWindow.focus(); frame.contentWindow.print(); } catch(err) { console.warn('Envelope print blocked.', err); }
     setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
   };
 }
@@ -1661,10 +1567,7 @@ function renderModalLists() {
   const addrList = document.getElementById('modal-addr-list');
 
   kaList.innerHTML = modalKATemp.map((k, i) =>
-    `<div class="ka-item">
-      <span>${k}</span>
-      <button class="ka-del" onclick="removeKATemp(${i})">×</button>
-    </div>`
+    `<div class="ka-item"><span>${k}</span><button class="ka-del" onclick="removeKATemp(${i})">×</button></div>`
   ).join('') || '<div style="color:var(--muted);font-size:12px;">No K/A names yet</div>';
 
   addrList.innerHTML = modalAddrTemp.map((a, i) =>
@@ -1699,39 +1602,26 @@ function removeAddrTemp(i) { modalAddrTemp.splice(i, 1); renderModalLists(); }
 
 function saveModal() {
   if (!currentModalParty) return;
-
-  if (!PARTY_BOOK[currentModalParty])
-    PARTY_BOOK[currentModalParty] = { ka: [], addr: [], notes: '' };
+  if (!PARTY_BOOK[currentModalParty]) PARTY_BOOK[currentModalParty] = { ka: [], addr: [], notes: '' };
 
   const pendingKA = document.getElementById('modal-ka-input').value.trim();
-  if (pendingKA && !modalKATemp.includes(pendingKA)) {
-    modalKATemp.push(pendingKA);
-  }
+  if (pendingKA && !modalKATemp.includes(pendingKA)) modalKATemp.push(pendingKA);
 
   const pendingAddr = document.getElementById('modal-addr-input').value.trim();
-  if (pendingAddr) {
-    modalAddrTemp.push(pendingAddr);
-  }
+  if (pendingAddr) modalAddrTemp.push(pendingAddr);
 
   PARTY_BOOK[currentModalParty].ka = [...modalKATemp];
   PARTY_BOOK[currentModalParty].addr = [...modalAddrTemp];
   PARTY_BOOK[currentModalParty].notes = document.getElementById('modal-notes-input').value.trim();
 
   savePB();
-
-  if (currentSearchParty && currentSearchParty === currentModalParty) {
-    loadPartyKAAndAddr(currentSearchParty);
-  }
-
+  if (currentSearchParty && currentSearchParty === currentModalParty) loadPartyKAAndAddr(currentSearchParty);
   closeModalDirect();
   renderPartyBook();
 }
 
 function closeModal(e) { if (e.target === document.getElementById('modal-overlay')) closeModalDirect(); }
-function closeModalDirect() {
-  document.getElementById('modal-overlay').classList.add('hidden');
-  currentModalParty = null;
-}
+function closeModalDirect() { document.getElementById('modal-overlay').classList.add('hidden'); currentModalParty = null; }
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && document.getElementById('modal-ka-input') === document.activeElement) addKA();
