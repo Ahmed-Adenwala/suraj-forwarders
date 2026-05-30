@@ -458,7 +458,7 @@
     line-height: 1.6;
     color: var(--text);
     white-space: pre-wrap;
-    max-height: 140px;
+    max-height: 200px;
     overflow-y: auto;
     transition: border-color 0.2s;
     display: none;
@@ -649,16 +649,15 @@
 
         <!-- Buttons immediately below the fields -->
         <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-          <button class="btn btn-accent" style="padding:10px 22px; font-size:13px;" onclick="generatePDF()">🖨 Generate Cover Letter PDF</button>
-          <button class="btn btn-purple" style="padding:10px 16px; font-size:13px;" onclick="printAddress()">📬 Print Address (Envelope)</button>
-          <button class="btn btn-ghost btn-sm" onclick="openPartyBook()">⚙ Manage K/A &amp; Addresses</button>
+          <button class="btn btn-accent" style="padding:11px 26px; font-size:14px;" onclick="generatePDF()">🖨 Generate Cover Letter PDF</button>
+          <button class="btn btn-purple" style="padding:11px 18px; font-size:14px;" onclick="printAddress()">📬 Print Address (Envelope)</button>
+          <button class="btn btn-ghost" style="padding:11px 16px; font-size:13px;" onclick="openPartyBook()">⚙ Manage K/A &amp; Addresses</button>
         </div>
 
       </div>
 
       <!-- RIGHT: address preview, independently positioned, never pushes buttons -->
-      <div class="addr-preview-box" id="addr-preview-box" style="flex:1; min-width:220px; max-width:380px; margin-top:0; margin-left:0;">
-        <div class="addr-preview-label">Envelope Preview</div>
+      <div class="addr-preview-box" id="addr-preview-box" style="flex:1; min-width:220px; max-width:380px; margin-top:0; margin-left:20px;">
         <div id="addr-preview-text"></div>
       </div>
 
