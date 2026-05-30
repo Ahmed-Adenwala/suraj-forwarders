@@ -620,16 +620,16 @@
     <div class="step-label"><span class="step-num">3</span> Kind Attention &amp; Print PDF</div>
 
     <!-- Outer: left control panel + right preview panel -->
-    <div style="display:flex; align-items:flex-start; gap:20px;">
+    <div style="display:flex; align-items:flex-start; gap:0;">
 
-      <!-- LEFT: fields + buttons, fixed narrow width -->
-      <div style="display:flex; flex-direction:column; gap:14px; width:480px; flex-shrink:0;">
+      <!-- LEFT: fields + buttons -->
+      <div style="display:flex; flex-direction:column; gap:14px; flex-shrink:0; width:560px;">
 
         <!-- Row: K/A + Address dropdown side by side -->
         <div style="display:flex; gap:14px; align-items:flex-end;">
 
           <!-- K/A input -->
-          <div class="field-group relative" style="flex:1;">
+          <div class="field-group relative" style="flex:1; min-width:0;">
             <label>Kind Attention</label>
             <input type="text" id="cl-attn" placeholder="e.g. MR. Priyank Shah" style="width:100%;"
               oninput="onAttnInput()" onblur="hideAttnSuggestions()" autocomplete="off">
@@ -637,7 +637,7 @@
           </div>
 
           <!-- Address dropdown -->
-          <div class="field-group" style="flex:1;">
+          <div class="field-group" style="flex:1; min-width:0;">
             <label>Party Address</label>
             <div class="pill-row" id="addr-pills" style="margin-bottom:4px;"></div>
             <select id="addr-select" style="width:100%; font-size:12px;" onchange="updateAddrPreview()">
@@ -647,17 +647,17 @@
 
         </div>
 
-        <!-- Buttons immediately below the fields — all on one row, equal spacing -->
-        <div style="display:flex; gap:10px; align-items:center;">
-          <button class="btn btn-accent"  style="flex:1; padding:11px 0; font-size:13px; text-align:center;" onclick="generatePDF()">🖨 Generate Cover Letter PDF</button>
-          <button class="btn btn-purple"  style="flex:1; padding:11px 0; font-size:13px; text-align:center;" onclick="printAddress()">📬 Print Address (Envelope)</button>
-          <button class="btn btn-ghost"   style="flex:1; padding:11px 0; font-size:13px; text-align:center;" onclick="openPartyBook()">⚙ Manage K/A &amp; Addresses</button>
+        <!-- Buttons: each fills equal share of the 560px, same row always -->
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;">
+          <button class="btn btn-accent" style="padding:11px 0; font-size:13px;" onclick="generatePDF()">🖨 Generate Cover Letter PDF</button>
+          <button class="btn btn-purple" style="padding:11px 0; font-size:13px;" onclick="printAddress()">📬 Print Address (Envelope)</button>
+          <button class="btn btn-ghost"  style="padding:11px 0; font-size:13px;" onclick="openPartyBook()">⚙ Manage K/A &amp; Addresses</button>
         </div>
 
       </div>
 
-      <!-- RIGHT: address preview stretches into remaining space -->
-      <div class="addr-preview-box" id="addr-preview-box" style="flex:1; margin-top:0; margin-left:28px; max-width:none;">
+      <!-- RIGHT: preview fills remaining page width, pushed to far right -->
+      <div class="addr-preview-box" id="addr-preview-box" style="flex:1; min-width:0; margin-left:32px; max-width:none; max-height:200px;">
         <div id="addr-preview-text"></div>
       </div>
 
